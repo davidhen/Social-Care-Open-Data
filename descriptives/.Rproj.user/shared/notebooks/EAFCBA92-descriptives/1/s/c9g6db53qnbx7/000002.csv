@@ -1,0 +1,4 @@
+"0","laundry_byLA <-"
+"0","  facet_plot(hmcare_alldata, quote(Laundry_OV), quote(LAcode)) +"
+"0","  ggtitle(""Home care clients receiving laundry service, by LA"")"
+"0","laundry_byLA"

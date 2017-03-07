@@ -1,0 +1,4 @@
+"0","commalarm_nat <-"
+"0","  facet_plot(hmcare_telecare, quote(communityalarmonly), quote(year)) +"
+"0","  ggtitle(""Community alarm for those receiving home care, by year"")"
+"0","commalarm_nat"

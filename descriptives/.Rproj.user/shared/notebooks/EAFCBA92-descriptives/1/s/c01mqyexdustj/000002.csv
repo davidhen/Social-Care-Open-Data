@@ -1,0 +1,4 @@
+"0","Staff_byGender_andAge <-"
+"0","  multifacet_plot(hmcare_alldata, quote(Staff), quote(AgeGRP), quote(GenderISO)) +"
+"0","  ggtitle(""Staffing for Home care clients, by Gender and Age"")"
+"0","Staff_byGender_andAge"

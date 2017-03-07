@@ -1,0 +1,4 @@
+"0","otherserv_byLA <-"
+"0","  facet_plot(hmcare_alldata, quote(other_services), quote(LAcode)) +"
+"0","  ggtitle(""Other services for home care clients, by LA"")"
+"0","otherserv_byLA"

@@ -1,0 +1,4 @@
+"0","gender_by_age <-"
+"0","  facet_plot(hmcare_alldata, quote(GenderISO), quote(AgeGRP)) +"
+"0","  ggtitle(""Gender by Age Group"")"
+"0","gender_by_age"

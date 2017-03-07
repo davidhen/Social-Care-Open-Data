@@ -1,0 +1,5 @@
+"0","bandHRSTT_by_ClientGRP_and_Agegroup <-"
+"0","  multifacet_plot(hmcare_alldata_simplified, quote(bandHRSTT), quote(AgeGRP),"
+"0","                  quote(ClientGRP)) +"
+"0","  ggtitle(""Total Home Care Hours 2010-2012, by Client Group and Age Group"")"
+"0","bandHRSTT_by_ClientGRP_and_Agegroup"

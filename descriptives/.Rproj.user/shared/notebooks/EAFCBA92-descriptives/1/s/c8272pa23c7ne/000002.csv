@@ -1,0 +1,4 @@
+"0","commandtelecare_byLA <-"
+"0","  facet_plot(hmcare_telecare, quote(communityandtelecare), quote(LAcode)) +"
+"0","  ggtitle(""Community and Telecare, Home care cohort, by Local Authority"")"
+"0","commandtelecare_byLA"

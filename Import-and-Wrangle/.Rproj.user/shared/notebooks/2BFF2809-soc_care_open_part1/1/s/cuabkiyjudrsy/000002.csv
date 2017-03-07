@@ -1,0 +1,7 @@
+"0","alldata <- full_join(hmcare2011, hmcare2012)"
+"2","Joining, by = c(""LAcode"", ""clientID"", ""AgeGRP"", ""ClientGRP"", ""GenderISO"", ""meals"", ""bandHRSLA"", ""bandHRSpri"", ""bandHRSvol"", ""bandHRSPC"", ""bandHRSTT"", ""HCclient"", ""communityalarmonly"", ""telecareonly"", ""communityandtelecare"", ""LivingArr"", ""Staff"", ""HousingType_OV"", ""Laundry_OV"", ""Shopping_OV"", ""HousingSupport_OV"", ""IoRN_OV"", ""year"")
+"
+"0","alldata <- full_join(alldata, hmcare2010) %>%"
+"0","  arrange(., year) #arrange data by year."
+"2","Joining, by = c(""LAcode"", ""clientID"", ""AgeGRP"", ""ClientGRP"", ""GenderISO"", ""meals"", ""bandHRSLA"", ""bandHRSpri"", ""bandHRSvol"", ""bandHRSPC"", ""bandHRSTT"", ""HCclient"", ""LivingArr"", ""Staff"", ""HousingType_OV"", ""Laundry_OV"", ""Shopping_OV"", ""HousingSupport_OV"", ""IoRN_OV"", ""year"")
+"

@@ -1,0 +1,6 @@
+"0","sc10 <- hmcare2010"
+"0","sc11 <- hmcare2011"
+"0","sc12 <- hmcare2012"
+"0","rm(hmcare2010)"
+"0","rm(hmcare2011)"
+"0","rm(hmcare2012)"

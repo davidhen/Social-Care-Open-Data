@@ -1,0 +1,4 @@
+"0","gender_by_year <-"
+"0","  facet_plot(hmcare_alldata, quote(GenderISO), quote(year)) + "
+"0","  ggtitle(""Count of Gender, by year"")"
+"0","gender_by_year"

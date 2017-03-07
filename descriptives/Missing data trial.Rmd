@@ -1,0 +1,226 @@
+---
+title: "Social Care Survey Open Data"
+author: "David Henderson"
+subtitle: "Descriptive stats"
+output:
+  html_document:
+    code_folding: hide
+    toc: yes
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(cache = TRUE)
+```
+
+
+#Introduction
+In part 1 I imported and wrangled the the Social Care Survey open data made available by the Scottish Government.The aim of this part is to describe the variables contained in the data to understand distributions and to assess quality and missingness of these variables.
+
+#Conclusions
+
+This document is in narrative format and documents the step-by-step analysis of the open datasets. As you will see below it was quickly evident that most of the missing data was found in the cohort of individuals that do not receive home care (i.e. hours of carer attending the individual's home) but *only* recieve meals or other services (telecare, laundry etc). The analysis in this document, therefore, concentrates on individuals that *did* receive homecare. It is a long document with lots of graphs. For this reason I have summarised the main findings here.
+
+* Individuals that do not receive Home care services have markedly more missing data for Age, gender, and client group. This cohort will be looked at in more detail in the next part of analysis.
+
+* The Home care cohort has very little missing data, however some variables are of questionable quality.  
+      + Client Group levels (Dementia/Physical Disability/Infirmity due to Age etc.) are completed very differently across LAs.  
+      + Meals data are difficult to distinguish between "No Meals" and missing data (NA).  
+      + The open data has pre-banded, uneven levels of  hours of home care making it difficult to identify good or better bandings. The data is completed very well so "real" data when we get it should allow sensitivity analysis of bandings.  
+      + Living arrangements data has the most missingness in this cohort - levels reported vary significantly across LAs making quality questionable.  
+      + The Housing Type variable is of poor quality and unreliable.  
+      + The optional (i.e. optional for LAs to return to the SG) variables; Laundry, Shopping, and housing support show big variations is levels of delivery across LAs. Whether this variation is due to service provision or quality of returned data is difficult to tell - again a little unreliable.    
+  
+* The Staffing variable (Single or Multi-staffed) appears to be completed well and could possibly act as a proxy for increased need. There is a wide variation across LAs for levels of multi-staffed indiviudals.
+  
+* Telecare data is only collected in 2011 and 2012 and appears of good quality. A large proportion of those receiving home care also have a community alarm - almost half of all individuals. There is wide variation across LAs in provision of telecare so will be interesting to see any differences in outcomes. 
+
+* Significantly more females than males receive Home care services. I think greater than the proportion of females in the general population although I would need to check this out. Does this influence outcomes? I think worth investigating further. 
+
+
+#Preliminaries
+
+Load the dataframes created in the Import and Wrangle file
+
+```{r load_data}
+load("alldata.RData")
+load("wrangled_datasets.RData")
+```
+
+Load the required packages
+
+```{r load_packages, message=FALSE}
+library(dplyr)
+library(forcats)
+library(mice)
+library(VIM)
+library(cowplot)
+```
+
+A lot of the code written here was created on a test run I completed on the 2010 data alone. Using that code I have created a couple of functions that produce the plots required for the type of data we have. These functions save a lot of cut and paste and reduce the potential for code errors. I'll load them into the workspace now.
+
+```{r load_functions}
+
+#Define Basic Plot function
+basic_plot <- function(df, x){
+  
+  plotstats <-
+    df %>%
+    group_by_(x) %>%               
+    summarise_(count = ~n()) %>%
+    mutate_(pct = ~count/sum(count)*100)
+  
+  plot <-                   
+    ggplot(df,aes_(x = x)) +
+    geom_bar() + 
+    geom_text(data = plotstats, aes(label=paste0(round(pct,1),"%"),
+                                        y=pct), size=3.5, vjust = -1, colour = "sky blue")
+  
+  plot
+
+}
+
+#Define facet_plot function
+facet_plot <- function(df, x, y){
+  
+  plotstats <-                   
+    df %>%
+    group_by_(y, x) %>%         
+    summarise_(count = ~n()) %>%
+    mutate_(pct = ~count/sum(count)*100) %>%
+    mutate_(yeartot = ~sum(count))
+  
+  plot <-            
+    ggplot(df,aes_(x = x)) +
+    geom_bar() +
+    facet_wrap(y, scales = "free") +
+    geom_text(data = plotstats, aes(label=paste0(round(pct,1),"%"),
+                                    y=pct), size=3.5, vjust = -1, 
+              colour = "sky blue") +
+    geom_text(data = plotstats,
+            aes(label=paste0("Total number = ",yeartot), x = Inf, y= Inf),
+                hjust = 1, vjust = 1, colour = "black")
+  plot
+  
+}
+
+#Define multi-facet plot
+multifacet_plot <- function(df, x, y, z){
+  
+  plotstats <-                   
+    df %>%
+    group_by_(y, z, x) %>%         
+    summarise_(count = ~n()) %>%
+    mutate_(pct = ~count/sum(count)*100) %>%
+    mutate_(yeartot = ~sum(count))
+  
+  plot <-            
+    ggplot(df,aes_(x = x)) +
+    geom_bar() + 
+    facet_grid(as.formula(paste(y,"~", z)), scales = "free") +
+    geom_text(data = plotstats, aes(label=paste0(round(pct,1),"%"),
+                                    y=pct), size=3.5, vjust = -1, colour = "sky blue") +
+    geom_text(data = plotstats,
+            aes(label=paste0("Total number = ",yeartot), x = Inf, y= Inf),
+                hjust = 1, vjust = 1, colour = "black")
+  plot
+  
+}
+```
+
+There is a home care flag in the dataset that identifies those that get care in the home and those that do not e.g. those that receive meals or laundry service *only*. I'm going to subset my wrangled datasets so I can analyse by these different groups 
+
+```{r subset_dfs}
+hmcare_alldata <- alldata %>%
+  filter(HCclient == "Yes")
+nohmcare_alldata <- alldata %>%
+  filter(HCclient == "No")
+
+hmcare_sc10 <- sc10 %>%
+  filter(HCclient == "Yes")
+nohmcare_sc10 <- sc10 %>%
+  filter(HCclient == "No")
+
+hmcare_sc11 <- sc11 %>%
+  filter(HCclient == "Yes")
+nohmcare_sc11 <- sc11 %>%
+  filter(HCclient == "No")
+
+hmcare_sc12 <- sc12 %>%
+  filter(HCclient == "Yes")
+nohmcare_sc12 <- sc12 %>%
+  filter(HCclient == "No")
+```
+
+#Missing data
+I'll check the missing data by year to begin with. I'll start with 2010 
+##2010
+
+###All data
+
+```{r 2010_all_missing_variables}
+missing <- function(x) {round(sum(is.na(x))/length(x)*100, 2)}
+apply(sc10, 2, missing)
+```
+
+So this quick function gives us the percetage of each variable that has missing values. There are `r nrow(sc10)` observations in the 2010 datset. IoRN_OV clearly of little use. Worst of the rest is LivingArr with 35% missing data. 
+
+I can also  visualise the missingness across observations.  
+
+```{r missplot, fig.width=10, warning=FALSE, message=FALSE}
+sc10missing <- aggr(sc10, col=c('navyblue','red'), combined = TRUE, numbers=TRUE,
+                    prop = FALSE, sortVars=TRUE, labels=names(sc10),
+                    cex.axis=.7, gap=3, digits = 2, bars = FALSE,
+                    ylab=c("Pattern of missing data"))
+```
+
+It took me a little while to figure out how to read this plot.
+
+Basically we start at the bottom-right corner and can see 44734 observations. Looking across the plot shows us that these observations are missing the IoRN_OV variable only. Next up 19064 observations are missing IoRN_OV and Living Arr. 4937 obsevrations are missing IoRN_OV, LivingArrm ClientGRP, AgeGRP, and GenderISO etc. etc. It is a very handy plot!
+
+Looking at the bottom 2 numbers shows 63798 of the `r nrow(sc10)` 2010 observations are missing data for IoRN or IoRN and LivingArr only. A further 1556 have no missing data at all. 
+
+Given there is a Flag in the data to distinguish homecare from no homecare clients - let's assess the missingness across these subsets. There are `r nrow(nohmcare_sc10)` observations in the No homecare subset and `r nrow(hmcare_sc10)` observations in the home care dataset for 2010. 
+
+###No Home Care
+
+```{r missing_nohomecare}
+apply(nohmcare_sc10, 2, missing)
+```
+
+Clearly a lot more missing data in this subset for AgeGRP, ClientGRPm and GenderISO. In fact exactly the same (rounded) percentages suggesting these are missing across observations.  84% of the `r nrow(nohmcare_sc10)` observations have missing data for LivingArr which is probably too high to be be useful. Again IoRN_OV is poorly recorded. 
+
+```{r nohmcare_sc10missplot, fig.width=10}
+
+nohmcare_sc10missing <- aggr(nohmcare_sc10, col=c('navyblue','red'), combined = TRUE,
+                             numbers=TRUE, prop = FALSE, sortVars=TRUE, labels=names(sc10),
+                             cex.axis=.7, gap=3, digits = 2, bars = FALSE, 
+                             ylab=c("Pattern of missing data"))
+```
+
+The 4937 observations seen in the whole 2010 dataset with missing observations for 5 variables are all in this No home care subset. A further 2988 observations are missing 4 (important) variables. This accounts for `r round((4937+2988)/nrow(nohmcare_sc10)*100,2)`% of the subset data. 
+
+Because of this, I am firstly going to concentrate on the Home care subset for descriptive purposes. 
+
+
+###Home Care
+Before we start desribing distributions of the Home care subset, it will still be useful to have un understanding of the missingness in the data.
+
+```{r missing_hmcare_sc10}
+apply(hmcare_sc10, 2, missing)
+```
+
+So, of the `r nrow(hmcare_sc10)` observations in the home care subset, we can see that only fractions have  missing data for AgeGRP, ClientGRP, and Gender. 28% of this subset has missing data for LivingArr compared to 35% of the total 2010 observations. 
+
+```{r hmcare_sc10_missingplot, fig.width=10}
+hmcare_sc10missing <- aggr(hmcare_sc10, col=c('navyblue','red'), combined = TRUE,
+                           numbers=TRUE, prop = FALSE, sortVars=TRUE, labels=names(sc10),
+                           cex.axis=.7, gap=3, digits = 2, bars = FALSE, 
+                           ylab=c("Pattern of missing data"))
+```
+
+Only 1 observation in the Home Care subset has more than 3 missing variables. `r (43161 + 17964 + 1556)` observations have either complete data, or miss IoRN or IoRN & LivingArr only. This represents `r round((43161 + 17964 + 1556)/nrow(hmcare_sc10) * 100, 2)`% of the Home Care subset and is reassuring. 
+
+
+
+
+

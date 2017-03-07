@@ -1,0 +1,4 @@
+"0","ClientGRP_table <-"
+"0","  fct_count(no_hmcare2010$ClientGRP) %>%"
+"0","  mutate(percentage = n/sum(n)*100)"
+"0","ClientGRP_table"

@@ -1,0 +1,52 @@
+---
+title: "Part 2 Social Care Survey Open Data"
+output:
+  html_document:
+    code_folding: hide
+    toc: yes
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(cache = TRUE)
+```
+
+```{r load_data_and_packages, message=FALSE}
+load("wrangled_datasets.RData")
+library(tidyverse)
+library(forcats)
+```
+
+This suggests that in areas with higher proportions of over75s receiving care the working age population get proportionally less home care. We can plot that fairly easily by doing some data wrangling and stealing some code. 
+
+The code in question is from https://susanejohnston.wordpress.com/2012/08/09/a-quick-and-easy-function-to-plot-lm-results-in-r/
+and is a nice function to do a quick scatterplot with a regression line and print the regression stats.
+
+I'm removing the 4 council areas with over 25% missing data for this plot. We really can't draw any conclusions regarding age from these areas.
+
+```{r scatterplot_age}
+baddata <- c("Angus", "Clackmannanshire", "Perth & Kinross", "Stirling")
+
+comp_table <- 
+  AgeGRP10stats_byLA_simplified %>%
+  filter(AgeGRP == "18-<65" | AgeGRP == "over75") %>%
+  select(-count) %>%
+  spread(AgeGRP, pct) %>%
+  rename(under65 = `18-<65`, over75 = over75) %>%
+  filter(!(LAcode %in% baddata))
+
+ggplotRegression <- function (fit) {
+
+require(ggplot2)
+
+ggplot(fit$model, aes_string(x = names(fit$model)[2], y = names(fit$model)[1])) + 
+  geom_point() +
+  stat_smooth(method = "lm", col = "blue") +
+  labs(title = paste("Adj R2 = ",signif(summary(fit)$adj.r.squared, 2),
+                     "Intercept =",signif(fit$coef[[1]],2 ),
+                     " Slope =",signif(fit$coef[[2]], 2),
+                     " P =",signif(summary(fit)$coef[2,4], 2)))
+}
+
+fit1 <- lm(under65 ~ over75, data = comp_table)
+ggplotRegression(fit1)
+```

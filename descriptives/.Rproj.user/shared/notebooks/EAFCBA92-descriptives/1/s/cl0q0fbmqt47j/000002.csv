@@ -1,0 +1,4 @@
+"0","LivingArr_byLA <-"
+"0","  facet_plot(hmcare_alldata, quote(LivingArr), quote(LAcode)) +"
+"0","  ggtitle(""Living Arrangements Home Care Clients, by Local Authority"")"
+"0","LivingArr_byLA"

@@ -1,0 +1,4 @@
+"0","bandHRSTT_by_ClientGRP <-"
+"0","  facet_plot(hmcare_alldata_simplified, quote(bandHRSTT), quote(ClientGRP)) +"
+"0","  ggtitle(""Total home care hours 2010-2012, by Client Group"")"
+"0","bandHRSTT_by_ClientGRP"

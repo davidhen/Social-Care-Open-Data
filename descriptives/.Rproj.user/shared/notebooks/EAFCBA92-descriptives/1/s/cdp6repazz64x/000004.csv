@@ -1,0 +1,5 @@
+"0","bandHRSTT_national <-"
+"0","  facet_plot(hmcare_alldata, quote(bandHRSTT), quote(year)) +"
+"0","  ggtitle(""Total Hours Home Care, by year"") +"
+"0","  theme(axis.text.x = element_text(angle = 45, size = 10, hjust = 1, vjust = 1))"
+"0","bandHRSTT_national"

@@ -1,0 +1,4 @@
+"0","housingsupport_byLA <-"
+"0","  facet_plot(hmcare_alldata, quote(HousingSupport_OV), quote(LAcode)) +"
+"0","  ggtitle(""Home care clients receiving Housing Support, by LA"")"
+"0","housingsupport_byLA"

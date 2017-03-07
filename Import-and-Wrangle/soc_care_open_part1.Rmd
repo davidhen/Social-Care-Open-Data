@@ -1,0 +1,753 @@
+---
+title: "Social Care Survey Open Data"
+subtitle: "Import and Wrangle"
+output: 
+  rmarkdown::html_document :
+    theme: readable
+    code_folding: hide
+    toc: yes
+    toc_float: yes
+    number_sections: yes
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(cache = TRUE)
+```
+
+#Introduction
+
+This is a first look at open data provided by the Scottish Government. The data is anonymised at the individual level for home care data collected in 2010, 2011, & 2012 and can be downloaded here:- 
+
+```{r packages, message=FALSE}
+library(dplyr)
+library(mice)
+library(VIM)
+```
+
+#Import the data
+I have saved the files in the working directory - Need to import them into memory.  
+
+```{r import}
+hmcare2010 <- read.csv("2010.csv")
+hmcare2011 <- read.csv("2011.csv")
+hmcare2012 <- read.csv("2012.csv")
+```
+
+#Descriptives
+##First look at each file.  
+
+```{r descriptives}
+glimpse(hmcare2010)
+glimpse(hmcare2011)
+glimpse(hmcare2012)
+```
+
+
+The first thing to note is there is roughly half the number of observations in 2010 compared with the other 2 years. This is beacuse 2010 only covers Home Care whereas the other 2 years also cover telcare and community alarm recipients. 
+
+Home Care variables are collected across years and named consistantly which is great.
+
+Some variables (e.g. AgeGRP, ClientGRP etc.) have imported as integers in 2011 and 2012 but as a factor in 2011. This will need attended to.
+
+#Data wrangle
+##Convert variables
+
+Starting witht the top variable seen above and working down:-
+
+LAcode has been imported as an integer in all 3 files - this should be a factor.
+
+```{r factorise_LAcode}
+LAlevels <- c("100", "110", "120", "130", "150", "170","180","190","200", "210", "220",
+              "230", "235", "240", "250", "260","270", "280", "290", "300", "310", "320",
+              "330", "340","350", "355", "360", "370", "380", "390", "395", "400")
+LAlabels <- c("Aberdeen City", "Aberdeenshire", "Angus", "Argyll & Bute", "Clackmannanshire",
+              "Dumfries & Galloway", "Dundee City", "East Ayrshie", 
+              "East Dunbartonshire","East Lothian", "East Renfrewshire",
+              "Edinburgh, City of", "Eilean Siar", "Falkirk", "Fife", "Glasgow City",
+              "Highland","Inverclyde", "Midlothian", "Moray", "North Ayrshire",
+              "North Lanarkshire", "Orkney Islands","Perth & Kinross", "Renfrewshire",
+              "Scottish Borders", "Shetland Islands","South Ayrshire", "South Lanarkshire",
+              "Stirling","West Dunbartonshire","West Lothian")
+
+hmcare2010$LAcode <- factor(hmcare2010$LAcode,
+                            levels = LAlevels,
+                            labels = LAlabels)
+
+hmcare2011$LAcode <- factor(hmcare2011$LAcode,
+                            levels = LAlevels,
+                            labels = LAlabels)
+
+hmcare2012$LAcode <- factor(hmcare2012$LAcode,
+                            levels = LAlevels,
+                            labels = LAlabels)
+```
+
+
+ClientID has imported as a factor - this variable would be better as a character vector.
+```{r character_ClientID}
+hmcare2010$clientID <- as.character(hmcare2010$clientID)
+hmcare2011$clientID <- as.character(hmcare2011$clientID)
+hmcare2012$clientID <- as.character(hmcare2012$clientID)
+```
+
+  
+AgeGRP has also been imported as an integer - factorise. 
+
+```{r factorise_AgeGRP}
+AgeGRPlevels = c("1", "2", "3", "4", "5")
+AgeGRPlabels <- c("18-<65", "65-<75", "75-<85", "85+", "Unknown")
+#2010
+hmcare2010$AgeGRP <- factor(hmcare2010$AgeGRP,
+                            levels = AgeGRPlevels,
+                            labels = AgeGRPlabels)
+hmcare2010$AgeGRP[hmcare2010$AgeGRP == "Unknown"] <- NA #Convert Missing data to NA
+
+#2011
+hmcare2011$AgeGRP <- factor(hmcare2011$AgeGRP,
+                            levels = AgeGRPlevels,
+                            labels = AgeGRPlabels)
+hmcare2011$AgeGRP[hmcare2011$AgeGRP == "Unknown"] <- NA #Convert missing dsta to NA
+
+#2012
+hmcare2012$AgeGRP <- factor(hmcare2012$AgeGRP,
+                            levels = AgeGRPlevels,
+                            labels = AgeGRPlabels)
+hmcare2012$AgeGRP[hmcare2012$AgeGRP == "Unknown"] <- NA #Convert Missing data to NA
+
+```
+
+ClientGRP came in as a factor for 2010 but an integer for 2011 and 2012. I will recode them all to add the labels.
+
+```{r factorise_ClientGRP}
+ClientGRPlevels <- c("1", "2", "3", "4", "5", "99", ".")
+CLientGRPlabels <- c("Dementia & Mental Health", "Learning Disability", 
+                     "Physical Disability", "Infirmity due to Age","Other",
+                     "Not Known", "Blank")
+
+#2010
+hmcare2010$ClientGRP <- factor(hmcare2010$ClientGRP,
+                               levels = ClientGRPlevels,
+                               labels = CLientGRPlabels)
+hmcare2010$ClientGRP[hmcare2010$ClientGRP == "Not Known"] <- NA #Covert missin data
+hmcare2010$ClientGRP[hmcare2010$ClientGRP == "Blank"] <- NA     #to NA
+
+#2011
+hmcare2011$ClientGRP <- factor(hmcare2011$ClientGRP,
+                               levels = ClientGRPlevels,
+                               labels = CLientGRPlabels)
+hmcare2011$ClientGRP[hmcare2011$ClientGRP == "Not Known"] <- NA #Covert missin data
+hmcare2011$ClientGRP[hmcare2011$ClientGRP == "Blank"] <- NA     #to NA
+
+
+#2012
+hmcare2012$ClientGRP <- factor(hmcare2012$ClientGRP,
+                               levels = ClientGRPlevels,
+                               labels = CLientGRPlabels)
+hmcare2012$ClientGRP[hmcare2012$ClientGRP == "Not Known"] <- NA #Covert missin data
+hmcare2012$ClientGRP[hmcare2012$ClientGRP == "Blank"] <- NA     #to NA
+
+```
+
+GenderISO again imported as factor in 2010 but integer in other 2 years. Again will recode all years to add labels. 
+
+```{r factorise_GenderISO}
+#2010
+hmcare2010$GenderISO <- factor(hmcare2010$GenderISO,
+                               levels = c("1", "2", "."),
+                               labels = c("Male", "Female", "Blank"))
+hmcare2010$GenderISO[hmcare2010$GenderISO == "Blank"] <- NA #Convert missing to NA
+
+#2011
+hmcare2011$GenderISO <- factor(hmcare2011$GenderISO,
+                               levels = c("1", "2", "."),
+                               labels = c("Male", "Female", "Blank"))
+hmcare2011$GenderISO[hmcare2011$GenderISO == "Blank"] <- NA #Convert missing to NA
+
+#2012
+hmcare2012$GenderISO <- factor(hmcare2012$GenderISO,
+                               levels = c("1", "2", "."),
+                               labels = c("Male", "Female", "Blank"))
+hmcare2012$GenderISO[hmcare2012$GenderISO == "Blank"] <- NA #Convert missing to NA
+```
+
+Factorise meals - dichotomous variable. The 2011 and 2012 .csv files only seem to have values for meals meaning we have to presume empty values are "no meals", rather than missing data. Not too sure about this but will investgate further in the analysis. For now the data stays as missing and will be computed as NA 
+
+```{r factorise_meals}
+hmcare2010$meals <- factor(hmcare2010$meals,
+                           levels = c("0", "1"),
+                           labels = c("No meals", "Meals")) 
+
+
+hmcare2011$meals <- factor(hmcare2011$meals,
+                           levels = c("0", "1"),
+                           labels = c("No meals", "Meals"))
+
+
+hmcare2012$meals <- factor(hmcare2012$meals,
+                           levels = c("0", "1"),
+                           labels = c("No meals", "Meals")) 
+
+#Slightly different coding from metadata to make Graph labels more readable
+```
+
+Need to factorise Home Care Hours also. This variable has been pre-banded but imported as an integer. Start with thr Total Hours
+```{r factorise_bandHRSTT}
+bandHRS_levels <- c("0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12")
+bandHRS_labels <- c("Zero", "<1", "1-2", "2-4", "4-6","6-8", "8-10", "10-15", "15-20",
+                    "20-30","30-40", "40-50", "over50")
+
+hmcare2010$bandHRSTT <- factor(hmcare2010$bandHRSTT,
+                               levels = bandHRS_levels,
+                               labels = bandHRS_labels)
+
+hmcare2011$bandHRSTT <- factor(hmcare2011$bandHRSTT,
+                               levels = bandHRS_levels,
+                               labels = bandHRS_labels)
+
+hmcare2012$bandHRSTT <- factor(hmcare2012$bandHRSTT,
+                               levels = bandHRS_levels,
+                               labels = bandHRS_labels)
+```
+Now need to do all the other Home Care Hours variables. 
+
+```{r factorise_bandHRSLA}
+#2010
+hmcare2010$bandHRSLA <- factor(hmcare2010$bandHRSLA,
+                               levels = bandHRS_levels,
+                               labels = bandHRS_labels)
+
+hmcare2010$bandHRSpri <- factor(hmcare2010$bandHRSpri,
+                               levels = bandHRS_levels,
+                               labels = bandHRS_labels)
+
+hmcare2010$bandHRSvol <- factor(hmcare2010$bandHRSvol,
+                               levels = bandHRS_levels,
+                               labels = bandHRS_labels)
+
+hmcare2010$bandHRSPC <- factor(hmcare2010$bandHRSPC,
+                               levels = bandHRS_levels,
+                               labels = bandHRS_labels)
+#2011
+hmcare2011$bandHRSLA <- factor(hmcare2011$bandHRSLA,
+                               levels = bandHRS_levels,
+                               labels = bandHRS_labels)
+
+hmcare2011$bandHRSpri <- factor(hmcare2011$bandHRSpri,
+                               levels = bandHRS_levels,
+                               labels = bandHRS_labels)
+
+hmcare2011$bandHRSvol <- factor(hmcare2011$bandHRSvol,
+                               levels = bandHRS_levels,
+                               labels = bandHRS_labels)
+
+hmcare2011$bandHRSPC <- factor(hmcare2011$bandHRSPC,
+                               levels = bandHRS_levels,
+                               labels = bandHRS_labels)
+#2012
+hmcare2012$bandHRSLA <- factor(hmcare2012$bandHRSLA,
+                               levels = bandHRS_levels,
+                               labels = bandHRS_labels)
+
+hmcare2012$bandHRSpri <- factor(hmcare2012$bandHRSpri,
+                               levels = bandHRS_levels,
+                               labels = bandHRS_labels)
+
+hmcare2012$bandHRSvol <- factor(hmcare2012$bandHRSvol,
+                               levels = bandHRS_levels,
+                               labels = bandHRS_labels)
+
+hmcare2012$bandHRSPC <- factor(hmcare2012$bandHRSPC,
+                               levels = bandHRS_levels,
+                               labels = bandHRS_labels)
+```
+
+Factorise HCclient. This is a derived variable indicating whether client recieved home care or not. Useful for subsetting.
+
+```{r factorise_HCclient}
+hmcare2010$HCclient <- factor(hmcare2010$HCclient,
+                              levels = c("0", "1"),
+                              labels = c("No", "Yes"))
+
+hmcare2011$HCclient <- factor(hmcare2011$HCclient,
+                              levels = c("0", "1"),
+                              labels = c("No", "Yes"))
+
+hmcare2012$HCclient <- factor(hmcare2012$HCclient,
+                              levels = c("0", "1"),
+                              labels = c("No", "Yes"))
+```
+
+2011 and 2012 data have extra variables on community alarms and telecare. Again these are dichotomous variables and need factorised.
+
+```{r telecare_variables}
+#2011
+hmcare2011$telecareonly <- factor(hmcare2011$telecareonly,
+                                  levels = c("0", "1"),
+                                  labels = c("No", "Yes"))
+hmcare2011$communityalarmonly <- factor(hmcare2011$communityalarmonly,
+                                        levels = c("0", "1"),
+                                        labels = c("No", "Yes"))
+hmcare2011$communityandtelecare <- factor(hmcare2011$communityandtelecare,
+                                          levels = c("0", "1"),
+                                          labels = c("No", "Yes"))
+
+#2012
+hmcare2012$telecareonly <- factor(hmcare2012$telecareonly,
+                                  levels = c("0", "1"),
+                                  labels = c("No", "Yes"))
+hmcare2012$communityalarmonly <- factor(hmcare2012$communityalarmonly,
+                                        levels = c("0", "1"),
+                                        labels = c("No", "Yes"))
+hmcare2012$communityandtelecare <- factor(hmcare2012$communityandtelecare,
+                                          levels = c("0", "1"),
+                                          labels = c("No", "Yes"))
+```
+
+
+All 3 years of data have Living Arrangement data signifying whether the client lives alone or not - factorise.
+
+The metadata reports the level "9" as "Not known". I think this counts as missing data so will code as NA.
+
+```{r factorise_LivingArr}
+#2010
+hmcare2010$LivingArr <- factor(hmcare2010$LivingArr,
+                               levels = c("1", "2", "9"),
+                               labels = c("Lives Alone", "Other", "Not Known"))
+hmcare2010$LivingArr[hmcare2010$LivingArr == "Not Known"] <- NA
+
+#2011
+hmcare2011$LivingArr <- factor(hmcare2011$LivingArr,
+                               levels = c("1", "2", "9"),
+                               labels = c("Lives Alone", "Other", "Not Known"))
+hmcare2011$LivingArr[hmcare2011$LivingArr == "Not Known"] <- NA
+
+#2012
+hmcare2012$LivingArr <- factor(hmcare2012$LivingArr,
+                               levels = c("1", "2", "9"),
+                               labels = c("Lives Alone", "Other", "Not Known"))
+hmcare2012$LivingArr[hmcare2012$LivingArr == "Not Known"] <- NA
+```
+
+The Staff variable indicates whether multiple staff required or not. Dichotomous. Factorise.
+
+```{r factorise_Staff}
+hmcare2010$Staff <- factor(hmcare2010$Staff,
+                           levels = c("0", "1"),
+                           labels = c("Single Staff", "2 or more Staff"))
+
+hmcare2011$Staff <- factor(hmcare2011$Staff,
+                           levels = c("0", "1"),
+                           labels = c("Single Staff", "2 or more Staff"))
+
+hmcare2012$Staff <- factor(hmcare2012$Staff,
+                           levels = c("0", "1"),
+                           labels = c("Single Staff", "2 or more Staff"))
+```
+
+HousingType_OV is an optional variable from 2010. Interesting that there is not a code for missing or not known. We'll see completeness when visualising.....
+
+```{r factorise_HousingType_OV}
+hmcare2010$HousingType_OV <- factor(hmcare2010$HousingType_OV,
+                                    levels = c("0", "1", "9"),
+                                    labels = c("Mainstream", "Supported Housing",
+                                               "Other"))
+
+hmcare2011$HousingType_OV <- factor(hmcare2011$HousingType_OV,
+                                    levels = c("0", "1", "9"),
+                                    labels = c("Mainstream", "Supported Housing",
+                                               "Other"))
+
+hmcare2012$HousingType_OV <- factor(hmcare2012$HousingType_OV,
+                                    levels = c("0", "1", "9"),
+                                    labels = c("Mainstream", "Supported Housing",
+                                               "Other"))
+```
+
+Laundry_OV as above
+
+```{r factorise_Laundry}
+hmcare2010$Laundry_OV <- factor(hmcare2010$Laundry_OV,
+                                levels = c("0", "1"),
+                                labels = c("No", "Yes"))
+
+hmcare2011$Laundry_OV <- factor(hmcare2011$Laundry_OV,
+                                levels = c("0", "1"),
+                                labels = c("No", "Yes"))
+
+hmcare2012$Laundry_OV <- factor(hmcare2012$Laundry_OV,
+                                levels = c("0", "1"),
+                                labels = c("No", "Yes"))
+```
+
+Shopping_OV As above
+
+```{r factorise_Shopping}
+hmcare2010$Shopping_OV <- factor(hmcare2010$Shopping_OV,
+                                 levels = c("0", "1"),
+                                 labels = c("No", "Yes"))
+
+hmcare2011$Shopping_OV <- factor(hmcare2011$Shopping_OV,
+                                 levels = c("0", "1"),
+                                 labels = c("No", "Yes"))
+
+hmcare2012$Shopping_OV <- factor(hmcare2012$Shopping_OV,
+                                 levels = c("0", "1"),
+                                 labels = c("No", "Yes"))
+```
+
+HousingSupport_OV As Above
+
+```{r factorise_HousingSupport_OV}
+hmcare2010$HousingSupport_OV <- factor(hmcare2010$HousingSupport_OV,
+                                       levels = c("0", "1"),
+                                       labels = c("No", "Yes"))
+
+hmcare2011$HousingSupport_OV <- factor(hmcare2011$HousingSupport_OV,
+                                       levels = c("0", "1"),
+                                       labels = c("No", "Yes"))
+
+hmcare2012$HousingSupport_OV <- factor(hmcare2012$HousingSupport_OV,
+                                       levels = c("0", "1"),
+                                       labels = c("No", "Yes"))
+```
+
+IoRN_OV As Above
+```{r factorise_IoRN_OV}
+hmcare2010$IoRN_OV <- factor(hmcare2010$IoRN_OV,
+                             levels = c("A", "B", "C", "D", "E", "F", "G", "H", "I"),
+                             labels = c("Low", "LowB", "Medium", "LowD", "MediumE",
+                                        "High", "MediumG", "HighH", "HighI"))
+
+hmcare2011$IoRN_OV <- factor(hmcare2011$IoRN_OV,
+                             levels = c("A", "B", "C", "D", "E", "F", "G", "H", "I"),
+                             labels = c("Low", "LowB", "Medium", "LowD", "MediumE",
+                                        "High", "MediumG", "HighH", "HighI"))
+
+hmcare2012$IoRN_OV <- factor(hmcare2012$IoRN_OV,
+                             levels = c("A", "B", "C", "D", "E", "F", "G", "H", "I"),
+                             labels = c("Low", "LowB", "Medium", "LowD", "MediumE",
+                                        "High", "MediumG", "HighH", "HighI"))
+```
+
+The 2012 dataset contains 3 variables that should really have been deleted before publication; error, error1,and HCFlag. The 1st 2 speak for themselves. The HCFlag variable is a duplicate of the HCclient variable. As the latter is used in the prvious 2 years worth of data we will keep that one.
+
+```{r drop 2012 variables}
+hmcare2012 <- select(hmcare2012, -error, -error1, -HCFlag)
+```
+
+
+Ok check everyhting is looking ok
+
+```{r check_factors}
+glimpse(hmcare2010)
+glimpse(hmcare2011)
+glimpse(hmcare2012)
+```
+
+
+##Are individuals identifiable across years?
+
+First important question:- are clientID codes unique to each year or can we identify inidividuals in seperate years? To help answer this I'll create 3 vectors containing the values of clientID for each year.
+
+```{r any_crossover}
+ids2010 <- hmcare2010$clientID  # Create vectors of ClientID for each year
+ids2011 <- hmcare2011$clientID
+ids2012 <- hmcare2012$clientID
+```
+
+So now I want to compare 2010 with 2011 data. Firstly I'll count the number of clientIDs combined and then identify how many of these values are unique.
+
+```{r 2010_2011_crossover}
+length(c(ids2010, ids2011))     #Calculate length of combined 2010 and 2011 IDs
+n_distinct(c(ids2010, ids2011)) #Count distinct values
+```
+
+So Less than 400 repeated IDs out of 200k observations. Probably more than liekly down to random generation of IDs
+
+Repeat comparison for 2010 and 2012.  
+```{r 2010_2012_crossover}
+length(c(ids2010, ids2012))     #Repeat for 2010 and 2012
+n_distinct(c(ids2010, ids2012))
+```
+
+Again overlap of only about 400.
+
+For completeness compare 2011 and 2012
+
+```{r 2011_2012_crossover}
+length(c(ids2011, ids2012))     #Repeat for 2011 and 2010
+n_distinct(c(ids2011, ids2012))
+```
+
+As expected - slightly more but must be down to random generation of ID. This means we will look at each year individually and won't be able to identify individuals across years.
+
+##Join datasets.
+
+It will be useful to compare aggregate stats across years. For this it will be easier to have all the data in 1 object.  
+
+To start with I'll add a year variable to each dataset to distinguish it. 
+
+```{r add_year}
+hmcare2010 <-
+  mutate(hmcare2010, year = as.character("2010"))
+
+hmcare2011 <-
+  mutate(hmcare2011, year = as.character("2011"))
+
+hmcare2012 <-
+  mutate(hmcare2012, year = as.character("2012"))
+```
+
+Ok, now join datsets together
+
+```{r join_data}
+alldata <- full_join(hmcare2011, hmcare2012)
+alldata <- full_join(alldata, hmcare2010) %>%
+  arrange(., year) #arrange data by year.
+```
+
+A quick check that we still have every observation
+```{r check_join}
+total_obs <- nrow(hmcare2011) + nrow(hmcare2012) + nrow(hmcare2010) #count total observations
+
+#Is the total equal to total number observation in new dataset?
+total_obs == nrow(alldata)
+```
+And a quick look at the dataset, this should look similar to the daughter datasets,
+
+```{r glimpse_alldata}
+glimpse(alldata)
+```
+
+
+Ok, so we now have 4 wrangled datasets; alldata, hmcare2010, hmcare2011 and hmcare2012 ready for analysis. I am going to rename the yearly datasets as late  we will want to make a distinction between indiviudals receiving homecare and those that do not i.e. those getting meals or e.g. laundry only. These dataset names could be confusing.
+
+```{r rename_data}
+sc10 <- hmcare2010
+sc11 <- hmcare2011
+sc12 <- hmcare2012
+rm(hmcare2010)
+rm(hmcare2011)
+rm(hmcare2012)
+```
+
+There is a home care flag in the dataset that identifies those that get care in the home and those that do not e.g. those that receive meals or laundry service *only*. I'm going to subset my wrangled datasets so I can analyse by these different groups 
+
+```{r subset_dfs}
+hmcare_alldata <- alldata %>%
+  filter(HCclient == "Yes")
+nohmcare_alldata <- alldata %>%
+  filter(HCclient == "No")
+
+hmcare_sc10 <- sc10 %>%
+  filter(HCclient == "Yes")
+nohmcare_sc10 <- sc10 %>%
+  filter(HCclient == "No")
+
+hmcare_sc11 <- sc11 %>%
+  filter(HCclient == "Yes")
+nohmcare_sc11 <- sc11 %>%
+  filter(HCclient == "No")
+
+hmcare_sc12 <- sc12 %>%
+  filter(HCclient == "Yes")
+nohmcare_sc12 <- sc12 %>%
+  filter(HCclient == "No")
+```
+
+#Missing data
+I'll check the missing data by year to begin with. I'll start with 2010   
+
+##2010
+
+###All data
+
+```{r 2010_all_missing_variables}
+missing <- function(x) {round(sum(is.na(x))/length(x)*100, 2)}
+apply(sc10, 2, missing)
+```
+
+So this quick function gives us the percetage of each variable that has missing values. There are `r nrow(sc10)` observations in the 2010 datset. IoRN_OV clearly of little use. Worst of the rest is LivingArr with 36% missing data. 
+
+I can also  visualise the missingness across observations.  
+
+```{r missplot, fig.width=10, warning=FALSE, message=FALSE}
+sc10missing <- aggr(sc10, col=c('navyblue','red'), combined = TRUE, numbers=TRUE,
+                    prop = FALSE, sortVars=TRUE, labels=names(sc10),
+                    cex.axis=.7, gap=3, digits = 2, bars = FALSE,
+                    ylab=c("Pattern of missing data"))
+```
+
+It took me a little while to figure out how to read this plot.
+
+Basically we start at the bottom-right corner and can see 44734 observations. Looking across the plot shows us that these observations are missing the IoRN_OV variable only. Next up 19064 observations are missing IoRN_OV and Living Arr. 4937 obsevrations are missing IoRN_OV, LivingArrm ClientGRP, AgeGRP, and GenderISO etc. etc. It is a very handy plot!
+
+Looking at the bottom 2 numbers shows 63798 of the `r nrow(sc10)` observations in 2010 are missing data for IoRN or IoRN and LivingArr only. A further 1556 have no missing data at all. 
+
+Given there is a Flag in the data to distinguish homecare from no homecare clients - let's assess the missingness across these subsets. There are `r nrow(nohmcare_sc10)` observations in the No homecare subset and `r nrow(hmcare_sc10)` observations in the home care dataset for 2010. 
+
+###No Home Care
+
+```{r missing_nohomecare}
+apply(nohmcare_sc10, 2, missing)
+```
+
+Clearly a lot more missing data in this subset for AgeGRP, ClientGRPm and GenderISO. In fact exactly the same (rounded) percentages suggesting these are missing across observations.  84% of the `r nrow(nohmcare_sc10)` observations have missing data for LivingArr which is probably too high to be be useful. Again IoRN_OV is poorly recorded. 
+
+```{r nohmcare_sc10missplot, fig.width=10}
+
+nohmcare_sc10missing <- aggr(nohmcare_sc10, col=c('navyblue','red'), combined = TRUE,
+                             numbers=TRUE, prop = FALSE, sortVars=TRUE, labels=names(sc10),
+                             cex.axis=.7, gap=3, digits = 2, bars = FALSE, 
+                             ylab=c("Pattern of missing data"))
+```
+
+The 4937 observations seen in the whole 2010 dataset with missing observations for 5 variables are all in this No home care subset. A further 2988 observations are missing 4 (important) variables. This accounts for `r round((4937+2988)/nrow(nohmcare_sc10)*100,2)`% of the subset data. 
+
+###Home Care
+
+```{r missing_hmcare_sc10}
+apply(hmcare_sc10, 2, missing)
+```
+
+So, of the `r nrow(hmcare_sc10)` observations in the home care subset, we can see that only fractions have  missing data for AgeGRP, ClientGRP, and Gender. 28% of this subset has missing data for LivingArr compared to 35% of the total 2010 observations. 
+
+```{r hmcare_sc10_missingplot, fig.width=10}
+hmcare_sc10missing <- aggr(hmcare_sc10, col=c('navyblue','red'), combined = TRUE,
+                           numbers=TRUE, prop = FALSE, sortVars=TRUE, labels=names(sc10),
+                           cex.axis=.7, gap=3, digits = 2, bars = FALSE, 
+                           ylab=c("Pattern of missing data"))
+```
+
+Only 1 observation in the Home Care subset has more than 3 missing variables. `r as.integer((43161 + 17964 + 1556))` observations have either complete data, are missing IoRN_OV only, or are missing IoRN_OV & LivingArr only. This represents `r round((43161 + 17964 + 1556)/nrow(hmcare_sc10) * 100, 2)`% of the Home Care subset and is reassuring. 
+
+##2011
+Repeat these analyses for 2011 data. 
+
+###All data
+
+```{r 2011_all_missing_variables}
+apply(sc11, 2, missing)
+```
+
+ There are `r nrow(sc11)` observations in the 2011 datset. IoRN_OV is, as in 2010, clearly of little use. Meals data also has a lot of missing data. I mentioned this whilst factorising the variable above and will discuss it further in the full analysis. Worst of the rest is LivingArr with 51% missing data. Significantly better completion for AgeGRP, and GenderISO compared to 2010, but slightly worse ClientGRP completion. 
+
+Missingness across observations:- 
+
+```{r missplot11, fig.width=16, fig.height=12, fig.cap="Pattern of Missing Data, 2011"}
+sc11missing <- aggr(sc11, col=c('navyblue','red'), combined = TRUE, numbers=TRUE,
+                    prop = FALSE, sortVars=TRUE, labels=names(sc11), cex.lab=1.5,
+                    cex.axis=0.6, gap=3, digits = 2, bars = FALSE, 
+                    ylab=c("Pattern"))
+```
+
+`r as.integer((50545 + 46719 + 6447 + 760 + 6239 + 2025))` observations have either complete data or varying combinations of missing data for  Iorn_OV, meals, and LivingArr. This represents `r round((50545 + 46719 + 6447 + 760 + 6239 + 2025)/nrow(sc11)*100,2)`% of the 2011 dataset. 
+
+I'll now assess the 2011 by the No home care and Home Care subsets.
+
+###No Home Care
+
+```{r missing_nohomecare11}
+apply(nohmcare_sc11, 2, missing)
+```
+
+All the missing data is a higher proportion than in the whole 2011 dataset. We know IoRN and meals are no use but I wonder if almost all the 2011 missing data for the other variables is in this subset....
+
+```{r nohmcare_sc11missplot, fig.width=10, fig.height=10,fig.cap="Pattern of missing data. No Home care subset, 2011"}
+nohmcare_sc11missing <- aggr(nohmcare_sc11, col=c('navyblue','red'), combined = TRUE,
+                             numbers=TRUE, prop = FALSE, sortVars=TRUE, 
+                             labels=names(nohmcare_sc11), cex.lab=1.5, cex.axis=0.6, 
+                             gap=3, digits = 2, bars = FALSE, ylab=c("Pattern"))
+```
+
+`r as.integer((32951+17140+1796+1060+852+66))` observations have either complete data or varying combinations of missing data for  Iorn_OV, meals, and LivingArr. This represents `r round((32951+17140+1796+1060+852+66)/nrow(nohmcare_sc11)*100,2)`% of the 2011 No Home Care subset. 
+
+###Home Care
+
+```{r missing_hmcare_sc11}
+apply(hmcare_sc11, 2, missing)
+```
+
+So next to no missing data for our Home care subset apart from our usual villans of meals and IoRN. LivingArr has a respectable (for admin data) missingness proportion of 25%. 
+
+```{r hmcare_sc11_missingplot, fig.width=10, fig.height=12}
+hmcare_sc11missing <- aggr(hmcare_sc11, col=c('navyblue','red'), combined = TRUE,
+                           numbers=TRUE, prop = FALSE, sortVars=TRUE, 
+                           labels=names(hmcare_sc11), cex.axis=.7, gap=3, digits = 2,
+                           bars = FALSE, lab=c("Pattern of missing data"))
+```
+
+`r as.integer((33405+13768+5387+4681+965+694+290+23))` observations have either complete data or varying combinations of missing data for  Iorn_OV, meals, and LivingArr. This represents `r round((33405+13768+5387+4681+965+694+290+23)/nrow(hmcare_sc11)*100,2)`% of the 2011 Home Care subset. 
+
+
+##2012
+
+###All data
+
+```{r 2012_all_missing_variables}
+apply(sc12, 2, missing)
+```
+ There are `r nrow(sc12)` observations in the 2012 datset. IoRN_OV, once more,  clearly of little use. As in 2011, the meals data also has a high percentage of missingness. LivingArr has 41% missing data in this year. Again AgeGRP and GenderISO are completed well and ClientGRP has better completion than in 2011. The newhours variable is only collected in this year of data. I think it may suggest 44% of home care clients received a change in the number of hours provided but will need to confirm in analysis.  
+
+I can also  visualise the missingness across observations.  
+
+```{r missplot12, fig.width=16, fig.height=12, fig.cap="Pattern of Missing Data, 2012"}
+sc12missing <- aggr(sc12, col=c('navyblue','red'), combined = TRUE, numbers=TRUE,
+                    prop = FALSE, sortVars=TRUE, labels=names(sc12), cex.lab=1.5,
+                    cex.axis=0.6, gap=3, digits = 2, bars = FALSE, 
+                    ylab=c("Pattern"))
+```
+
+119032 observations have either complete data or varying combinations of missing data for  Iorn_OV, meals, newhours, and LivingArr. This represents `r round(119032/nrow(sc12)*100,2)`% of the 2012 dataset. 
+
+I'll now assess the 2012 data by the No home care and Home Care subsets.
+
+###No Home Care
+
+```{r missing_nohomecare12}
+apply(nohmcare_sc12, 2, missing)
+```
+
+Again proportions of missing data are higher in this subset than in the whole dataset - even though they are pretty small numbers. 100% newhours missing data is here - which makes perdect sense. If somebody isn't getting home care at all then they can;t get new hours! Potentially 100% complete in the Home care subset. 
+
+```{r nohmcare_sc12missplot, fig.width=10, fig.height=10, fig.cap="Pattern of Missing Data, No Home Care Subset, 2012"}
+nohmcare_sc12missing <- aggr(nohmcare_sc12, col=c('navyblue','red'), combined = TRUE,
+                             numbers=TRUE, prop = FALSE, sortVars=TRUE, labels=names(sc12),
+                             cex.axis=.7, gap=3, digits = 2, bars = FALSE, 
+                             ylab=c("Pattern of missing data"))
+```
+
+`r as.integer((28288+26237+3040+1822+951+514+20+12))` observations have varying combinations of missing data for  newhours, Iorn_OV, meals, and LivingArr. This represents `r round((28288+26237+3040+1822+951+514+20+12)/nrow(nohmcare_sc12)*100,2)`% of the 2012 No Home Care subset. 
+
+###Home Care
+
+```{r missing_hmcare_sc12}
+apply(hmcare_sc12, 2, missing)
+```
+
+Again - next to no missingness for our main variables apart from IoRN and meals. New hours is indeed 100% complete in this subset (as it should be). 
+
+```{r hmcare_sc12_missingplot, fig.width=10, fig.height=8}
+hmcare_sc12missing <- aggr(hmcare_sc12, col=c('navyblue','red'), combined = TRUE,
+                           numbers=TRUE, prop = FALSE, sortVars=TRUE,
+                           labels=names(hmcare_sc12),
+                           cex.axis=.7, gap=3, digits = 2, bars = FALSE, 
+                           ylab=c("Pattern of missing data"))
+```
+
+`r as.integer((34491+13287+4530+4470+1008+394+19+2))` observations have varying combinations of missing data for Iorn_OV, meals, and LivingArr. This represents `r round((34491+13287+4530+4470+1008+394+19+2)/nrow(hmcare_sc12)*100,2)`% of the 2012 Home Care subset. 
+
+##Conclusions
+
+* Across all 3 years the majority of missing data is in the subset of individuals that do not receive home care services but *only* receive telecare or some other form of service such as Laundry or Shopping.   
+* IoRN_OV data is barely completed in any year and is of little use in any analysis.  
+* Meals data shows high levels of missingness in 2011 and 2012. It is impossible to tell whether this data is missing or refelcts "No Meals" as in the 2010 dataset. SG reports on the Social Care Survey do tend to say something along the lines of "Meals data has proved difficult for LAs to capture" which suggests to me it is not a reliable variable.  
+* Of the other variables LivingArr has approx 25% missing data. Further analysis required to see if this is Missing at Random or if there is something more structural going on.  
+* Given it has good levels of complete data I will provide more detailed descriptive analaysis of the Home Care subset first. 
+
+
+#Session Info
+
+```{r session_Info}
+devtools::session_info()
+```

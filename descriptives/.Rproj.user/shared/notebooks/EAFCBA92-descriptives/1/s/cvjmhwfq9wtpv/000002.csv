@@ -1,0 +1,4 @@
+"0","Staff_by_ClientGRP <-"
+"0","  facet_plot(hmcare_alldata, quote(Staff), quote(ClientGRP)) +"
+"0","  ggtitle(""Staffing for Home Care Clients, by Client Group"")"
+"0","Staff_by_ClientGRP"

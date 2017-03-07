@@ -1,0 +1,6 @@
+"0","ClientGRP_by_age_and_gender <-"
+"0","  multifacet_plot(hmcare_alldata, quote(ClientGRP), quote(GenderISO),"
+"0","                  quote(AgeGRP)) +"
+"0","  theme(axis.text.x = element_text(angle = 45, size = 8, hjust = 1, vjust = 1)) +"
+"0","  ggtitle(""Client Group, by Age and Gender"")"
+"0","ClientGRP_by_age_and_gender"

@@ -1,0 +1,5 @@
+"0","ClientGRP_by_age <-"
+"0","  facet_plot(hmcare_alldata, quote(ClientGRP), quote(AgeGRP)) + "
+"0","  ggtitle(""Count of ClientGRP, by Age group"") +"
+"0","  theme(axis.text.x = element_text(angle = 45, size = 6, hjust = 1, vjust = 1))"
+"0","ClientGRP_by_age"

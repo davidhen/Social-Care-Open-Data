@@ -1,0 +1,8 @@
+"0","bandHRSTT10stats <- "
+"0","  hmcare_only2010 %>%"
+"0","  filter(bandHRSTT != ""Zero"") %>%"
+"0","  group_by(bandHRSTT) %>%"
+"0","  summarise(count = n()) %>%"
+"0","  mutate(pct = count/sum(count)*100)"
+"2","Error in eval(expr, envir, enclos) : object 'hmcare_only2010' not found
+"

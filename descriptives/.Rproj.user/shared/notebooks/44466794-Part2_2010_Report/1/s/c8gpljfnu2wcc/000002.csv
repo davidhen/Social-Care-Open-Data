@@ -1,0 +1,4 @@
+"0","age_by_HCclient <- "
+"0","  facet_plot(hmcare2010, quote(AgeGRP),quote(HCclient)) + "
+"0","  ggtitle(""Count of Age Group by HCclient 2010"")"
+"0","age_by_HCclient "

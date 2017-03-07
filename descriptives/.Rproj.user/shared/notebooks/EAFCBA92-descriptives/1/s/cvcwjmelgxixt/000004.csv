@@ -1,0 +1,4 @@
+"0","telecare_nat <-"
+"0","  facet_plot(hmcare_telecare, quote(telecareonly), quote(year)) +"
+"0","  ggtitle(""Telecare for those receiving home care, by year"")"
+"0","telecare_nat"

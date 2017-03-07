@@ -1,0 +1,4 @@
+"0","meals_by_LA_2011 <-"
+"0","  facet_plot(hmcare_sc11, quote(meals), quote(LAcode)) +"
+"0","  ggtitle(""Meals for home care clients 2011, by Local Authority"")"
+"0","meals_by_LA_2011"

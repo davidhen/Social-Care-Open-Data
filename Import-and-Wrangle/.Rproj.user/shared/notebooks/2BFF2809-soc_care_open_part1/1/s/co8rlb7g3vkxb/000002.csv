@@ -1,0 +1,3 @@
+"0","ids2010 <- hmcare2010$clientID  # Create vectors of ClientID for each year"
+"0","ids2011 <- hmcare2011$clientID"
+"0","ids2012 <- hmcare2012$clientID"

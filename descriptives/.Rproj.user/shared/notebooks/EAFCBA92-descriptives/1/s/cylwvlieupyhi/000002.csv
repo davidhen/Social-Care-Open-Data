@@ -1,0 +1,5 @@
+"0","bandHRSTT_byAge_and_gender <-"
+"0","  multifacet_plot(hmcare_alldata_simplified, quote(bandHRSTT), quote(GenderISO),"
+"0","                  quote(AgeGRP)) +"
+"0","  ggtitle(""Total Home Care Hours 2010-2012, by Age and Gender"")"
+"0","bandHRSTT_byAge_and_gender"

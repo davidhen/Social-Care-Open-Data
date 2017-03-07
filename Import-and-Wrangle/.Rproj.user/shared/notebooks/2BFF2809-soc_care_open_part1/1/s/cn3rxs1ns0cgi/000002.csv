@@ -1,0 +1,7 @@
+"0","total_obs <- nrow(hmcare2011) + nrow(hmcare2012) + nrow(hmcare2010) #count total observations"
+"0","#Is the total equal to total number observation in new dataset?"
+"0","total_obs == nrow(alldata)"
+"1","[1]"
+"1"," TRUE"
+"1","
+"

@@ -1,0 +1,819 @@
+---
+title: "Part 2 Social Care Survey Open Data"
+output:
+  html_document:
+    code_folding: hide
+    toc: yes
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(cache = TRUE)
+```
+
+```{r load_data_and_packages, message=FALSE}
+load("wrangled_datasets.RData")
+library(tidyverse)
+library(forcats)
+```
+
+#Introduction
+In part 1 of the open data project I imported and wrangled the data into the required format. In this part I will focus on the 2010 data and describe the distribution and missingness of the variables in the dataset for this year. It is important to remember that the 2010 data only reports on home care with observations of about 76,000 individuals. 2011 and 2012 data also reports on telecare which adds 3 variables but doubles the observations. 
+
+#2010 descriptives
+
+I'll start with age.
+
+##Age
+
+###National distribution
+
+First of all I'll visualise the distribution home care received by age across the country. The open data release pre-banded this variable into 5 categories.
+
+```{r 2010_age_plot, warning=FALSE}
+AgeGRP10stats <- 
+  hmcare2010 %>%
+  group_by(AgeGRP) %>%
+  summarise(count = n()) %>%
+  mutate(pct = count/sum(count)*100)
+
+age_plot_national <-
+  ggplot(hmcare2010,aes(x = AgeGRP)) +
+  geom_bar() + 
+  geom_text(data = AgeGRP10stats, aes(label=paste0(round(pct,1),"%"),
+                               y=pct), size=3.5, vjust = -1, colour = "sky blue") +
+  ggtitle("Count of Age Group 2010 with percentage of Total")
+age_plot_national
+```
+      
+
+Here we can see almost 75% of home care in 2010 was for the over 65s. 10% of data is missing. 
+The HCclient variable is a dichotomous variable signifying whether an individual gets home care or not. If not, then the individual only gets some other form of care i.e. meals, laundry etc. I wondered if there was an age difference between these 2 groups. 
+
+```{r HC_Age, fig.width=10}
+AgeGRP_HC10stats <- 
+  hmcare2010 %>%
+  group_by(HCclient, AgeGRP) %>%
+  summarise(count = n()) %>%
+  mutate(pct = count/sum(count)*100)
+
+age_plot_national_HCclient <-
+  ggplot(hmcare2010,aes(x = AgeGRP)) +
+  geom_bar() + 
+  facet_wrap(~HCclient) +
+  geom_text(data = AgeGRP_HC10stats, aes(label=paste0(round(pct,1),"%"),
+                               y=pct), size=3.5, vjust = -1, colour = "sky blue") +
+  ggtitle("Count of Age Group 2010 with percentage of Total by Clients receiving home care")
+age_plot_national_HCclient
+```
+
+Ok, good to know - of those clients that receive home care we have virtually no missing data. The plot shows 0% but there are a few - we can code to find out how many...
+
+```{r missing_hmcare}
+hmcare2010 %>%
+  filter(HCclient == "Yes") %>%
+  filter(AgeGRP == "Unknown") %>%
+  summarise(n())
+```
+
+13 individuals. Out of a total of  individuals. 
+
+Conversely, almost 75% of the  individuals who do not receive home care have Age data missing. So for now I am only going to concentrate on those individuals that get Home care. I suspect the missing data will all be in the the non-home care individuals and I will confirm this later. 
+
+###Distribution by Local Authority
+
+```{r 2010_Age_by_LA, fig.height=16, fig.width=18, warning=FALSE}
+
+AgeGRP10stats_byLA <-              #Again pre-summarise in a dataframe for labelling
+  hmcare2010 %>%                   #purposes
+  group_by(LAcode, AgeGRP) %>%    #Add LA to grouping
+  summarise(count = n()) %>%      #Count users by LA and Age Group
+  mutate(pct=count/sum(count)*100)    #Add percentage column
+
+age_plot_LA<-
+  ggplot(hmcare2010, aes(x=AgeGRP)) +   #Plot
+  geom_bar() +
+  facet_wrap(~LAcode, scales = "free") +
+  geom_text(data = AgeGRP10stats_byLA, aes(label=paste0(round(pct,1),"%"), y=pct),
+            size=3.5, vjust = -1, colour = "sky blue") + #Using table
+  ggtitle("Count of Age Group 2010 with percentage of total. By Local Authority")
+age_plot_LA
+```
+
+So, it is always difficult to visualise 32 seperate Local Autorities in 1 chart. Having said that I think this is a useful plot - much easier to read than a table with all this information. We can see quite a bit of variation across the country and also see some real villans with regard to missing data - most notably; Angus, Clackmannanshire, Perth & Kinross, and Stirling.  
+
+Only 5 Local Authoritie; East Ayrshire, Renfrewshire, Scottish Borders, South Ayrshire, and South Lanarkshire, returned Age data for all of their clients. A further 13 LAs have less than 5% missing data. I'll look at this in more detail later on.
+
+I'll replot but use only those that receive Home Care which should reduce the amount of missingness. 
+
+```{r 2010_Age_by_LA_hmcare, fig.height=16, fig.width=18, warning=FALSE}
+
+AgeGRP_hmcare10stats_byLA <-              
+  hmcare2010 %>% 
+  filter(HCclient == "Yes") %>%
+  group_by(LAcode, AgeGRP) %>%    
+  summarise(count = n()) %>%      
+  mutate(pct=count/sum(count)*100)  
+
+age_hmcare_plot_LA <-
+  hmcare2010 %>%
+  filter(HCclient == "Yes") %>%
+  ggplot(aes(x=AgeGRP)) +  
+  geom_bar() +
+  facet_wrap(~LAcode, scales = "free") +
+  geom_text(data = AgeGRP_hmcare10stats_byLA, aes(label=paste0(round(pct,1),"%"), y=pct),
+            size=3.5, vjust = -1, colour = "sky blue") +
+  ggtitle("Count of Age Group 2010 with percentage of total. By Local Authority")
+age_hmcare_plot_LA
+```
+
+At first glance the spread of clients older than 75 doesn't seem to have a pattern - I had expected larger proportions in rural LAs. I'll try a stacked bar chart.
+
+```{r stacked_age, fig.width=10}
+ordered_age <-                               #Create a vector with LAs ordered by over 75s
+  AgeGRP10stats_byLA %>%
+  arrange(AgeGRP, -pct)
+ordered_LAs <- ordered_age$LAcode[65:96]
+
+age_plot_stacked_age_LA <-
+  ggplot(ordered_age, aes(x = LAcode, y = pct, fill = AgeGRP)) +
+  geom_col(position = "stack") +
+  scale_x_discrete(limits = ordered_LAs) +   #using above vector
+  theme(axis.text.x = element_text(angle = 45, size = 10, hjust = 1)) +
+  ggtitle("Stacked proportions AgeGRP 2010 ordered by proportion of 75-85") +
+  xlab("Local Authority") +
+  ylab("Perecentage receiving homecare")
+age_plot_stacked_age_LA
+```
+
+It is still pretty difficult to make out a pattern here. I am going to combine the 75-85 and over 85 groups and see if that helps. 
+
+```{r stacked_age_simplified, fig.width=10}
+hmcare2010_simplified <- hmcare2010            #Collapse the 75 - 85 and 85+ levels
+hmcare2010_simplified$AgeGRP <- 
+  fct_collapse(hmcare2010_simplified$AgeGRP, 
+               over75 = c("75-<85", "85+"))
+
+AgeGRP10stats_byLA_simplified <-              #Create df with new percentage column
+  hmcare2010_simplified %>%                   
+  group_by(LAcode, AgeGRP) %>%   
+  summarise(count = n()) %>%     
+  mutate(pct=count/sum(count)*100)  
+
+ordered_age_simplified <-                   #Create a vector with LAs ordered by over 75s
+  AgeGRP10stats_byLA_simplified %>%
+  arrange(AgeGRP, -pct)
+ordered_LAs_simplified <- ordered_age_simplified$LAcode[65:96]
+
+age_plot_stacked_age_LA <-
+  ggplot(ordered_age_simplified, aes(x = LAcode, y = pct, fill = AgeGRP)) +
+  geom_col(position = "stack") +
+  scale_x_discrete(limits = ordered_LAs_simplified) +   #using above vector
+  theme(axis.text.x = element_text(angle = 45, size = 10, hjust = 1)) +
+  ggtitle("Stacked proportions AgeGRP 2010 ordered by proportion of over75s") +
+  xlab("Local Authority") +
+  ylab("Perecentage receiving homecare")
+age_plot_stacked_age_LA
+```
+
+Certainly a lot easier to make comparisons with this chart. Really clear to see the LAs with the lowest proportion of over 75s are also those with highest proportions missing data. Surprising to see East Renfrewshire as having the highest proportion but, as expected, rural council areas also have high propotions of over 75s. The proportion of 65-75 is pretty consistant and close to the average 13.7% mark. This means that changes in proportions are mostly between the young and very old.
+
+
+##Gender
+Next up to to investigate is Gender. 
+
+###National Distribution
+```{r national_gender}
+Gender10stats <- 
+  hmcare2010 %>%
+  group_by(GenderISO) %>%
+  summarise(count = n()) %>%
+  mutate(pct = count/sum(count)*100)
+
+gender_plot_national <-
+  ggplot(hmcare2010, aes(x = GenderISO)) +
+  geom_bar() +
+  geom_text(data = Gender10stats, aes(label=paste0(round(pct,1),"%"),
+                               y=pct), size=3.5, vjust = -1, colour = "sky blue") +
+  ggtitle("Count of Gender 2010 with percentage of Total")
+gender_plot_national
+```
+
+So, I did know there was a split but forgot is was quite as profound as that. This is reported in the annual social care survey. Why do women use more home care? Because they live longer?
+
+###Distribution by Age
+
+```{r gender_by_age}
+Gender10stats_byAge <-
+  hmcare2010 %>%
+  group_by(AgeGRP, GenderISO) %>%
+  summarise(count = n()) %>%
+  mutate(pct = count/sum(count) * 100)
+
+gender_plot_age <-
+  ggplot(hmcare2010, aes(x=GenderISO)) +
+  geom_bar() +
+  facet_wrap(~AgeGRP) +
+  geom_text(data = Gender10stats_byAge, aes(label=paste0(round(pct,1),"%"),
+                               y=pct), size=3.5, vjust = -1, colour = "sky blue") + 
+  ggtitle("Count of Gender 2010 with percentage of total. By Age Group")
+gender_plot_age
+```
+
+Certainly the difference in proportions of males and females increases thorugh the age bands.Also interesting to see that missing data is pretty consistant across Age and Gender. Where we don't know Age Band we don't know Gender (with the exception of 14 individuals)
+
+
+###Distribution by Local Authority
+```{r Gender_by_LA, fig.width=18, fig.height=16}
+Gender10stats_byLA <-
+  hmcare2010 %>%
+  group_by(LAcode,GenderISO) %>%
+  summarise(count = n()) %>%
+  mutate(pct = count/sum(count) * 100)
+
+gender_plot_LA <-
+  ggplot(hmcare2010, aes(x=GenderISO)) +
+  geom_bar() +
+  facet_wrap(~LAcode, scales = "free") +
+  geom_text(data = Gender10stats_byLA, aes(label=paste0(round(pct,1),"%"),
+                               y=pct), size=3.5, vjust = -1, colour = "sky blue") + 
+  ggtitle("Count of Gender 2010 with percentage of total. By Local Authority")
+gender_plot_LA
+```
+
+Again - our missing data villans are present. Again, probably better to visualise with stacked bar chart...
+
+```{r gender_stacked, fig.width=10}
+ordered_gender <- 
+  Gender10stats_byLA%>%
+  arrange(GenderISO, pct)
+ordered_LAs_gender <- ordered_gender$LAcode[33:64]
+
+gender_stacked_LA <-
+  ggplot(Gender10stats_byLA, aes(x = LAcode, y = pct, fill = GenderISO)) +
+  geom_col(position = "stack") +
+  scale_x_discrete(limits = rev(ordered_LAs_gender)) +
+  theme(axis.text.x = element_text(angle = 45, size = 10, hjust = 1)) +
+  ggtitle("Stacked proportions Gender 2010 ordered by proportion of Females") +
+  xlab("Local Authority") +
+  ylab("Perecentage receiving homecare")
+gender_stacked_LA
+```
+
+The usual suspects with missing data. 
+
+Using a stacked chart may also be the best way to compare gender with LA and Age... 
+
+```{r stacked_gender_with_Age_facet, fig.width=18, fig.height=12}
+Gender10stats_byLA_byAge <-
+  hmcare2010 %>%
+  group_by(LAcode,AgeGRP, GenderISO) %>%
+  summarise(count = n()) %>%
+  mutate(pct = count/sum(count) * 100)
+
+gender_stacked_LA_byAge <-
+  ggplot(Gender10stats_byLA_byAge, aes(x = LAcode, y = pct, fill = GenderISO)) +
+  geom_col(position = "stack") +
+  facet_grid(AgeGRP ~ .) +
+  geom_hline(yintercept = 50) +
+  ggtitle("Stacked proportions Gender 2010") +
+  xlab("Local Authority") +
+  ylab("Perecentage receiving homecare") +
+  theme(plot.title = element_text(size = 18, face = "bold")) +
+  theme(axis.text.x = element_text(angle = 45, size = 12,hjust = 1)) +
+  theme(axis.title = element_text(size = 14)) +
+  theme(strip.text.y = element_text(size=12, face="bold"))
+gender_stacked_LA_byAge
+```
+
+So this is a pretty messy chart - I'm not going to tidy it up for just now. We can see in 18-65 Age group is fairly 50-50 with some variation (top). As age increases proportion of females (green) increases across all LAs.
+
+##Client Group  
+
+Next up in the dataframe is Client Group. Using the metadata file published alongside the open data we can see this variable has been pre-grouped before release - presumably due to small numbers.   
+
+* Dementia and Mental Health are combined.  
+
+* "Other" is a combination of the Addiction, Palliative Care, Carers, and Other vulnerable groups designations. "Carers" itself is defined as home care provided to aid a family carer."Other vulnerable groups" includes; HIV/AIDs, Aquired Brain Injury, Homeless, and Women escaping domestic violence.   
+
+* The remainin groups are; Learning Disablility, Physical Disability, Problems arising from infirmity due to age.  
+
+Published Social Care Survey reports identify the potential for poor classification with this variable. Dementia is known to be underecorded. Also Physical Disability and Infirmity are often misclassified and can often be interchangeable.
+
+
+###National distribution
+```{r fig.height=5}
+ClientGRP10stats <- 
+  hmcare2010 %>%
+  group_by(ClientGRP) %>%
+  summarise(count = n()) %>%
+  mutate(pct = count/sum(count)*100)
+
+clientGRP_national <-
+  ggplot(hmcare2010, aes(x = ClientGRP)) +
+  geom_bar() +
+  geom_text(data = ClientGRP10stats, aes(label=paste0(round(pct,1),"%"),
+                               y=pct), size=3.5, vjust = -1, colour = "sky blue") +
+  ggtitle("Count of Client Group 2010 with percentage of Total") +
+  theme(axis.text.x = element_text(angle = 45, size = 12,hjust = 1))
+clientGRP_national
+```
+
+So pretty clearly the majority of home care is for Physical Disability and Infirmity. I note the "Blank" figure of 10.4% is the same value as the value missing for Age!
+
+###Distribution by Age
+```{r client_group_by_Age, fig.width=10, fig.height=8}
+ClientGRPstats_byAge <-
+  hmcare2010 %>%
+  group_by(AgeGRP, ClientGRP) %>%
+  summarise(count = n()) %>%
+  mutate(pct = count/sum(count) * 100)
+
+clientGRP_byAge <-
+  ggplot(hmcare2010, aes(x=ClientGRP)) +
+  geom_bar() +
+  facet_wrap(~AgeGRP) +
+  geom_text(data = ClientGRPstats_byAge, aes(label=paste0(round(pct,1),"%"),
+                               y=pct), size=3.5, vjust = -1, colour = "sky blue") + 
+  ggtitle("Count of Client Group 2010 with percentage of total. By Age Group") +
+  theme(axis.text.x = element_text(angle = 45, size = 6,hjust = 1))
+clientGRP_byAge
+```
+
+As expected, there are higher numbers of learning disability in the 18-65 Age band with increasing numbers of Physical Disability and Infirmity through the Age Bands.
+
+
+###Distribution by Local Authority
+```{r ClientGRP_byLA, fig.width=18, fig.height=16}
+ClientGRP10stats_byLA <-
+  hmcare2010 %>%
+  group_by(LAcode,ClientGRP) %>%
+  summarise(count = n()) %>%
+  mutate(pct = count/sum(count) * 100)
+
+clientGRP_LA <-
+  ggplot(hmcare2010, aes(x=ClientGRP)) +
+  geom_bar() +
+  facet_wrap(~LAcode, scales = "free") +
+  geom_text(data = ClientGRP10stats_byLA, aes(label=paste0(round(pct,1),"%"),
+                               y=pct), size=3, vjust = -1, colour = "sky blue") + 
+  ggtitle("Count of Client Group 2010 with percentage of total. By Local Authority")+
+  theme(axis.text.x = element_text(angle = 45, size = 6,hjust = 1))
+clientGRP_LA
+```
+
+So here the facet plot really comes in handy. We can see massive variation in levels of each of the client groups. This is almost certainly down to classification bias - local practices vary on how clients are classified meaning comparison across LAs is impossible. e.g. virtually nobody in North Ayrshire is classified as "Infirmity due to Age", whilst in the Scottish Borders almost everybody is in this group. This variable would be of no use as a comparator. To illustrate the disparity a little better, let's use a stacked bar chart again.
+
+```{r clientGRP_stacked, fig.width=10}
+ordered_clientGRP <- 
+  ClientGRP10stats_byLA%>%
+  arrange(ClientGRP, pct)
+ordered_LAs_ClientGRP <- ordered_clientGRP$LAcode[65:96]
+
+clientGRP_stacked <-
+  ggplot(ClientGRP10stats_byLA, aes(x = LAcode, y = pct, fill = ClientGRP)) +
+  geom_col(position = "stack") +
+  theme(axis.text.x = element_text(angle = 45, size = 10, hjust = 1)) +
+  scale_x_discrete(limits = rev(ordered_LAs_ClientGRP)) +
+  ggtitle("Stacked proportions Client Group 2010") +
+  xlab("Local Authority") +
+  ylab("Perecentage receiving homecare")
+clientGRP_stacked
+```
+
+Pretty clear that there is no clear distincition between Physical Disability and Infirmity. 
+
+##Home Care Hours
+Variable of most interest! Again this variable was banded pre-publication of the data. If I'm honest they aren't the most helpful bandings - something more ordinal would have been better e.g. some bands describe a value between 2hrs of home care, others between 5hrs of home care ("2-4", "5-10"). The home care hours data is provided with 5 variables; number of Local Authority provided hours, Private provided hours, Voluntary Organisation provided hours, Personal Care Hours, and Total hours. There are some people who will receive a variety of these and I may turn to this as a sub-group later. For the moment I will concentrate on total figures. I am filtering out data where the bandHRS variable = "Zero" in the following plots to aid analysis. I am also not plotting anything relating to Personal Care hours because nobody in the 2010 dataset received (or was recorded as receiving) Personal Care. We can show this with the follwing code.
+
+```{r bandHRSPC}
+PChrs <-
+  hmcare2010 %>%
+  filter(bandHRSPC == "Zero") %>%       #Identify everyone who had Zero value for PC hours
+  summarise(n())                        #Count how many observations have this value
+
+PChrs == length(hmcare2010$bandHRSPC)  #Is the number of observation with Zero equal to the total number of observations in the dataset?
+```
+
+Ok let's plot the data we do have. I'll create 4 seperate plots for each variable then combine them into 1 plot. 
+
+###National Distribution
+
+```{r national_bandHRSTT}
+bandHRSTT10stats <- 
+  hmcare2010 %>%
+  filter(bandHRSTT != "Zero") %>%
+  group_by(bandHRSTT) %>%
+  summarise(count = n()) %>%
+  mutate(pct = count/sum(count)*100)
+
+hmcare_national <-
+  hmcare2010 %>%
+  filter(bandHRSTT != "Zero") %>%
+  ggplot(aes(x = bandHRSTT)) +
+  geom_bar() +
+  geom_text(data = bandHRSTT10stats, aes(label=paste0(round(pct,1),"%"),
+                               y=pct), size=3.5, vjust = -1, colour = "sky blue") +
+  geom_text(data = bandHRSTT10stats, aes(label=paste0("Total number = ",sum(count)),
+                                         x = Inf, y= Inf, hjust = 1, vjust = 3)) +
+  ggtitle("Count of Total Home Care Hours 2010 with percentage of Total") +
+  xlab("Number of hours of Home Care") +
+  theme(axis.text.x = element_text(angle = 45, size = 12,hjust = 1))
+```
+
+```{r bandLAHRS}
+bandHRSLA10stats <- 
+  hmcare2010 %>%
+  filter(bandHRSLA != "Zero") %>%
+  group_by(bandHRSLA) %>%
+  summarise(count = n()) %>%
+  mutate(pct = count/sum(count)*100)
+
+hmcare_LA <-
+  hmcare2010 %>%
+  filter(bandHRSLA != "Zero") %>%
+  ggplot(aes(x = bandHRSLA)) +
+  geom_bar() +
+  geom_text(data = bandHRSLA10stats, aes(label=paste0(round(pct,1),"%"),
+                               y=pct), size=3.5, vjust = -1, colour = "sky blue") +
+  geom_text(data = bandHRSLA10stats, aes(label=paste0("Total number = ",sum(count)),
+                                         x = Inf, y= Inf, hjust = 1, vjust = 3)) +
+  ggtitle("Count of LA provided Home Care Hours 2010 with percentage of Total") +
+  xlab("Number of hours of Home Care") +
+  theme(axis.text.x = element_text(angle = 45, size = 12,hjust = 1))
+
+```
+
+```{r bandHRSpri}
+bandHRSpri10stats <- 
+  hmcare2010 %>%
+  filter(bandHRSpri != "Zero") %>%
+  group_by(bandHRSpri) %>%
+  summarise(count = n()) %>%
+  mutate(pct = count/sum(count)*100)
+
+hmcare_pri <-
+  hmcare2010 %>%
+  filter(bandHRSpri != "Zero") %>%
+  ggplot(aes(x = bandHRSpri)) +
+  geom_bar() +
+  geom_text(data = bandHRSpri10stats, aes(label=paste0(round(pct,1),"%"),
+                               y=pct), size=3.5, vjust = -1, colour = "sky blue") +
+  geom_text(data = bandHRSpri10stats, aes(label=paste0("Total number = ",sum(count)),
+                                         x = Inf, y= Inf, hjust = 1, vjust = 3)) +
+  ggtitle("Count of Private provided Home Care Hours 2010 with percentage of Total") +
+  xlab("Number of hours of Home Care") +
+  theme(axis.text.x = element_text(angle = 45, size = 12,hjust = 1))
+```
+
+```{r bandHRSvol}
+bandHRSvol10stats <- 
+  hmcare2010 %>%
+  filter(bandHRSvol != "Zero") %>%
+  group_by(bandHRSvol) %>%
+  summarise(count = n()) %>%
+  mutate(pct = count/sum(count)*100)
+
+hmcare_vol<-
+  hmcare2010 %>%
+  filter(bandHRSvol != "Zero") %>%
+  ggplot(aes(x = bandHRSvol)) +
+  geom_bar() +
+  geom_text(data = bandHRSvol10stats, aes(label=paste0(round(pct,1),"%"),
+                               y=pct), size=3.5, vjust = -1, colour = "sky blue") +
+  geom_text(data = bandHRSvol10stats, aes(label=paste0("Total number = ",sum(count)),
+                                         x = Inf, y= Inf, hjust = 1, vjust = 3)) +
+  ggtitle("Count of Voluntary Organisation provided Home Care Hours 2010 with percentage of Total") +
+  xlab("Number of hours of Home Care") +
+  theme(axis.text.x = element_text(angle = 45, size = 12,hjust = 1))
+```
+
+
+
+```{r hmcareplot, fig.width=18, fig.height=10, message=FALSE, warning=FALSE}
+library(cowplot)
+plot_grid(hmcare_national, hmcare_LA, hmcare_pri, hmcare_vol)
+```
+
+
+Important to note the y-axis varies with each of these plots. I've added totals to keep things in perspective. What's interesting here is the similarity in the distributions. With the exception of the high percentage of care provided by voluntary organisations in the over 50 hours bracket the proportions are fairly similar. More recent reports on the Social Care Survey suggest that private and voluntary organisations tend to provide care for larger care packages (i.e. over 10 hrs.). This isn't really obvious here but perhaps that change has happened since 2010. I'd like to simplify these plots a little. Before I looked at the data I had thought I'd like to bin the hours into 0-5, 5-10, 10-15, 15-20, and 20 plus. Because of the way this data is grouped I can't do that. For now I'll go for 0-4 and 4-10 then carry on. 
+```{r simplify_bandHRS, warning=FALSE}
+
+hmcare2010_simplified$bandHRSLA <- 
+  fct_collapse(hmcare2010_simplified$bandHRSLA, 
+               `<4` = c("<1", "1-2", "2-4"),
+               `4-10` = c("4-6", "6-8", "8-10"),
+               over20 = c("20-30", "30-40", "40-50", "over50"))
+
+hmcare2010_simplified$bandHRSpri <- 
+  fct_collapse(hmcare2010_simplified$bandHRSpri, 
+               `<4` = c("<1", "1-2", "2-4"),
+               `4-10` = c("4-6", "6-8", "8-10"),
+               over20 = c("20-30", "30-40", "40-50", "over50"))
+
+hmcare2010_simplified$bandHRSvol <- 
+  fct_collapse(hmcare2010_simplified$bandHRSvol, 
+               `<4` = c("<1", "1-2", "2-4"),
+               `4-10` = c("4-6", "6-8", "8-10"),
+               over20 = c("20-30", "30-40", "40-50", "over50"))
+
+hmcare2010_simplified$bandHRSTT <- 
+  fct_collapse(hmcare2010_simplified$bandHRSTT, 
+               `<4` = c("<1", "1-2", "2-4"),
+               `4-10` = c("4-6", "6-8", "8-10"),
+               over20 = c("20-30", "30-40", "40-50", "over50"))
+
+hmcare2010_simplified$bandHRSPC <- 
+  fct_collapse(hmcare2010_simplified$bandHRSPC, 
+               `<4` = c("<1", "1-2", "2-4"),
+               `4-10` = c("4-6", "6-8", "8-10"),
+               over20 = c("20-30", "30-40", "40-50", "over50"))
+```
+
+
+Ok, now I'll replot the above with the simplified levels. 
+
+```{r bandHRSTT_simplified}
+bandHRSTT10_simplifiedstats <- 
+  hmcare2010_simplified %>%
+  filter(bandHRSTT != "Zero") %>%
+  group_by(bandHRSTT) %>%
+  summarise(count = n()) %>%
+  mutate(pct = count/sum(count)*100)
+
+hmcare_national_simplified <-
+  hmcare2010_simplified %>%
+  filter(bandHRSTT != "Zero") %>%
+  ggplot(aes(x = bandHRSTT)) +
+  geom_bar() +
+  geom_text(data = bandHRSTT10_simplifiedstats, aes(label=paste0(round(pct,1),"%"),
+                               y=pct), size=5, vjust = -1, colour = "sky blue") +
+  geom_text(data = bandHRSTT10_simplifiedstats, 
+            aes(label=paste0("Total number = ",sum(count)), x = Inf, y= Inf, 
+                hjust = 1, vjust = 3)) +
+  ggtitle("Count of Total Home Care Hours 2010 with percentage of Total") +
+  xlab("Number of hours of Home Care") +
+  theme(axis.text.x = element_text(size = 12,hjust = 1))
+```
+
+```{r bandHRSLA_simplified}
+bandHRSLA10_simplifiedstats <- 
+  hmcare2010_simplified %>%
+  filter(bandHRSLA != "Zero") %>%
+  group_by(bandHRSLA) %>%
+  summarise(count = n()) %>%
+  mutate(pct = count/sum(count)*100)
+
+hmcare_LA_simplified <-
+  hmcare2010_simplified %>%
+  filter(bandHRSLA != "Zero") %>%
+  ggplot(aes(x = bandHRSLA)) +
+  geom_bar() +
+  geom_text(data = bandHRSLA10_simplifiedstats, aes(label=paste0(round(pct,1),"%"),
+                               y=pct), size=5, vjust = -1, colour = "sky blue") +
+  geom_text(data = bandHRSLA10_simplifiedstats, 
+            aes(label=paste0("Total number = ",sum(count)), x = Inf, y= Inf, 
+                hjust = 1, vjust = 3)) +
+  ggtitle("Count of LA provided Home Care Hours 2010 with percentage of Total") +
+  xlab("Number of hours of Home Care") +
+  theme(axis.text.x = element_text(size = 12,hjust = 1))
+
+```
+
+```{r bandHRSpri_simplified}
+bandHRSpri10_simplifiedstats <- 
+  hmcare2010_simplified %>%
+  filter(bandHRSpri != "Zero") %>%
+  group_by(bandHRSpri) %>%
+  summarise(count = n()) %>%
+  mutate(pct = count/sum(count)*100)
+
+hmcare_pri_simplified <-
+  hmcare2010_simplified %>%
+  filter(bandHRSpri != "Zero") %>%
+  ggplot(aes(x = bandHRSpri)) +
+  geom_bar() +
+  geom_text(data = bandHRSpri10_simplifiedstats, aes(label=paste0(round(pct,1),"%"),
+                               y=pct), size=5, vjust = -1, colour = "sky blue") +
+  geom_text(data = bandHRSpri10_simplifiedstats, 
+            aes(label=paste0("Total number = ",sum(count)), x = Inf, y= Inf,
+                hjust = 1, vjust = 3)) +
+  ggtitle("Count of Private provided Home Care Hours 2010 with percentage of Total") +
+  xlab("Number of hours of Home Care") +
+  theme(axis.text.x = element_text(size = 12,hjust = 1))
+```
+
+```{r bandHRSvol_simplified}
+bandHRSvol10_simplifiedstats <- 
+  hmcare2010_simplified %>%
+  filter(bandHRSvol != "Zero") %>%
+  group_by(bandHRSvol) %>%
+  summarise(count = n()) %>%
+  mutate(pct = count/sum(count)*100)
+
+hmcare_vol_simplified<-
+  hmcare2010_simplified %>%
+  filter(bandHRSvol != "Zero") %>%
+  ggplot(aes(x = bandHRSvol)) +
+  geom_bar() +
+  geom_text(data = bandHRSvol10_simplifiedstats, aes(label=paste0(round(pct,1),"%"),
+                               y=pct), size= 5, vjust = -1, colour = "sky blue") +
+  geom_text(data = bandHRSvol10_simplifiedstats,
+            aes(label=paste0("Total number = ",sum(count)), x = Inf, y= Inf,
+                hjust = 1, vjust = 3)) +
+  ggtitle("Count of Voluntary Organisation provided Home Care Hours 2010 with percentage of Total") +
+  xlab("Number of hours of Home Care") +
+  theme(axis.text.x = element_text(size = 12,hjust = 1))
+```
+
+
+
+```{r hmcareplot_simplified, fig.width=18, fig.height=10}
+library(cowplot)
+plot_grid(hmcare_national_simplified, hmcare_LA_simplified, hmcare_pri_simplified,
+          hmcare_vol_simplified)
+```
+
+So this makes the distinction a lot esasier to see. My quick eyeballing of the 1st plot didn't identify the difference so well. With this simplified plot we can see Local Authorities on the whole tend to concentrate on providing smaller care packages with the private, and particularly voluntary, sectors picking up a greater proportion of the larger packages of care. 
+
+###Distribution by Age
+
+With these simplified groups I'll now have a look at the distribution of Total number of home care hours by Age Group
+
+```{r bandHRSTT_by_Age, fig.width=18, fig.height=12}
+bandHRSTTstats_byAge <-
+  hmcare2010_simplified %>%
+  filter(bandHRSTT != "Zero") %>%
+  group_by(AgeGRP, bandHRSTT) %>%
+  summarise(count = n()) %>%
+  mutate(pct = count/sum(count) * 100)
+
+bandHRSTT_byAge <-
+  hmcare2010_simplified %>%
+  filter(bandHRSTT != "Zero") %>%
+  ggplot(aes(x=bandHRSTT)) +
+  geom_bar() +
+  facet_wrap(~AgeGRP, scales = "free") +
+  geom_text(data = bandHRSTTstats_byAge, aes(label=paste0(round(pct,1),"%"),
+                               y=pct), size=3.5, vjust = -1, colour = "sky blue") + 
+  ggtitle("Count of Total Home Care Hours 2010 with percentage of total. By Age Group") +
+  theme(axis.text.x = element_text(size = 12, hjust = 1))
+
+bandHRSLAstats_byAge <-
+  hmcare2010_simplified %>%
+  filter(bandHRSLA != "Zero") %>%
+  group_by(AgeGRP, bandHRSLA) %>%
+  summarise(count = n()) %>%
+  mutate(pct = count/sum(count) * 100)
+
+bandHRSLA_byAge <-
+  hmcare2010_simplified %>%
+  filter(bandHRSLA != "Zero") %>%
+  ggplot(aes(x=bandHRSLA)) +
+  geom_bar() +
+  facet_wrap(~AgeGRP, scales = "free") +
+  geom_text(data = bandHRSLAstats_byAge, aes(label=paste0(round(pct,1),"%"),
+                               y=pct), size=3.5, vjust = -1, colour = "sky blue") + 
+  ggtitle("Count of LA provided Home Care Hours 2010 with percentage of total. By Age Group") +
+  theme(axis.text.x = element_text(size = 12, hjust = 1))
+
+bandHRSpristats_byAge <-
+  hmcare2010_simplified %>%
+  filter(bandHRSpri != "Zero") %>%
+  group_by(AgeGRP, bandHRSpri) %>%
+  summarise(count = n()) %>%
+  mutate(pct = count/sum(count) * 100)
+
+bandHRSpri_byAge <-
+  hmcare2010_simplified %>%
+  filter(bandHRSpri != "Zero") %>%
+  ggplot(aes(x=bandHRSpri)) +
+  geom_bar() +
+  facet_wrap(~AgeGRP, scales = "free") +
+  geom_text(data = bandHRSpristats_byAge, aes(label=paste0(round(pct,1),"%"),
+                               y=pct), size=3.5, vjust = -1, colour = "sky blue") + 
+  ggtitle("Count of Private Home Care Hours 2010 with percentage of total. By Age Group") +
+  theme(axis.text.x = element_text(size = 12, hjust = 1))
+
+bandHRSvolstats_byAge <-
+  hmcare2010_simplified %>%
+  filter(bandHRSvol != "Zero") %>%
+  group_by(AgeGRP, bandHRSvol) %>%
+  summarise(count = n()) %>%
+  mutate(pct = count/sum(count) * 100)
+
+bandHRSvol_byAge <-
+  hmcare2010_simplified %>%
+  filter(bandHRSvol != "Zero") %>%
+  ggplot(aes(x=bandHRSvol)) +
+  geom_bar() +
+  facet_wrap(~AgeGRP, scales = "free") +
+  geom_text(data = bandHRSvolstats_byAge, aes(label=paste0(round(pct,1),"%"),
+                               y=pct), size=3.5, vjust = -1, colour = "sky blue") + 
+  ggtitle("Count of Total Home Care Hours 2010 with percentage of total. By Age Group") +
+  theme(axis.text.x = element_text(size = 12, hjust = 1))
+
+plot_grid(bandHRSTT_byAge, bandHRSLA_byAge, bandHRSpri_byAge, bandHRSvol_byAge)
+```
+
+So this is quite a busy plot again but useful if we break it down. There are 4 plots, each consisting of 4 plots.  Each shows the brekdown of home care hours by Age group. Top left shows Total hours, top right shows LA provided hours, bottom left Private provided hours, and bottom right:voluntary provided hours. 
+
+* Total Hours: The 18-65 age group has a fairly even spread of care packages and by far the largest proportion of very large packages. The older age groups show higher proportions of smaller (<10 hour) care packages. There are only very small numbers of people who get home care for whom we don't have Age data - which is good.  
+
+* LA provided hours. Across all age groups we see; a higher (or similar) proportion of small (<4hr) care packages, similar to national average proportions of 4-10hr packages; and smaller than average proportions of packages greater than 10 hours - particulary in the over 20 hour group.  
+
+* Private provided hours. We can see similar to national average proportions except in the <4hrs group (lower) and the over20hrs group (higher) across all age groups. 
+
+* Voluntary provided hours. In both under 75 age groups we see lower than average proportions across all hour banding groups, except the over 20 hrs banding where the proportion is significantly larger. Interestingly, the proportion of <4hrs is much higher than average in the over 75s group. 
+
+###Distribution across Local Authorities
+
+The next really interesting question is how home care hours vary across LAs. For now we will stick to the Total hours only.
+
+```{r bandHRSTT_byLA, fig.height=16, fig.width=18, warning=FALSE}
+
+bandHRSTT10stats_byLA <-           
+  hmcare2010_simplified %>% 
+  filter(HCclient == "Yes") %>%
+  group_by(LAcode, bandHRSTT) %>%    
+  summarise(count = n()) %>%      
+  mutate(pct=count/sum(count)*100)  
+
+bandHRSTTplot_LA <-
+  hmcare2010_simplified %>%
+  filter(HCclient == "Yes") %>%
+  ggplot(aes(x = bandHRSTT)) +   
+  geom_bar() +
+  facet_wrap(~LAcode, scales = "free") +
+  geom_text(data = bandHRSTT10stats_byLA, aes(label=paste0(round(pct,1),"%"), y=pct),
+            size=2.5, vjust = -1, colour = "sky blue") + 
+  ggtitle("Count of Total home care hours 2010 with percentage of total. By Local Authority")
+bandHRSTTplot_LA
+```
+
+Ok. Some really big variations here. Particularly in the <4hrs banding - from 20% in Dumfries & Galloway to 70% in Angus. There is no issue with missing data here. I have subset the dataframe using the HCclient flag which identifies everyone getting home care a total of `r nrow(hmcare2010_simplified[hmcare2010_simplified$HCclient == "Yes",])` individuals out of `r nrow(hmcare2010_simplified)` in the whole dataset (the remainder receiving only meals or other services). Additional details about individuals may be missing but not the hours. 
+
+Again, a stacked bar chart will be useful here...
+
+```{r stacked_bandHRSTT, fig.width=10}
+ordered_bandHRSTT <-                   #Create a vector with LAs ordered by over 75s
+  bandHRSTT10stats_byLA %>%
+  arrange(bandHRSTT, -pct)
+ordered_LAs_bandHRSTT <- ordered_bandHRSTT$LAcode[1:32] # Order by <4
+
+bandHRSTT_stacked_age_LA <-
+  ggplot(bandHRSTT10stats_byLA, aes(x = LAcode, y = pct, fill = bandHRSTT)) +
+  geom_col(position = "stack") +
+  scale_x_discrete(limits = ordered_LAs_bandHRSTT) +   #using above vector
+  theme(axis.text.x = element_text(angle = 45, size = 10, hjust = 1)) +
+  ggtitle("Stacked proportions Total Home Care Hours 2010 ordered by proportion of <4hrs") +
+  xlab("Local Authority") +
+  ylab("Perecentage receiving homecare")
+bandHRSTT_stacked_age_LA
+```
+
+Certainly shows the variation nicely!
+
+I'll try and see if Age has any impact on this variation. 
+
+```{r stacked_bandHRSTT_with_Age_facet, fig.width=18, fig.height=12}
+bandHRSTT10stats_byLA_byAge <-
+  hmcare2010_simplified %>%
+  filter(HCclient == "Yes") %>%
+  group_by(LAcode,AgeGRP, bandHRSTT) %>%
+  summarise(count = n()) %>%
+  mutate(pct = count/sum(count) * 100)
+
+bandHRSTT_stacked_LA_byAge <-
+  bandHRSTT10stats_byLA_byAge %>%
+  filter(bandHRSTT != "Zero") %>%
+  filter(AgeGRP != "Unknown") %>%
+  ggplot(aes(x = LAcode, y = pct, fill = bandHRSTT)) +
+  geom_col(position = "stack") +
+  facet_grid(AgeGRP ~ .) +
+  geom_hline(yintercept = 50) +
+  scale_x_discrete(limits = ordered_LAs_bandHRSTT) +
+  ggtitle("Stacked proportions Total Hours of Home Care 2010 by Age Band") +
+  xlab("Local Authority") +
+  ylab("Perecentage receiving homecare") +
+  theme(plot.title = element_text(size = 18, face = "bold")) +
+  theme(axis.text.x = element_text(angle = 45, size = 12,hjust = 1)) +
+  theme(axis.title = element_text(size = 14)) +
+  theme(strip.text.y = element_text(size=12, face="bold"))
+bandHRSTT_stacked_LA_byAge
+```
+
+So because there are only individuals who get Home care and have an "Unknown" Age I have removed them from this plot. I have kept the x-axis ordered by the TOTAL proportion <4hrs care as in the plot above. There is only some slight variation in the 18-65 age band but the order is fairly consistant with the Total plot. The other 2 Age bands show very close resemblance to the total plot. 
+
+
+
+```{r session_info}
+devtools::session_info()
+```
+
+
+
+
+
+
+
+

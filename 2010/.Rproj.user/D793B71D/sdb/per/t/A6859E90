@@ -1,0 +1,21 @@
+{
+    "collab_server" : "",
+    "contents" : "library(dplyr)\nlibrary(ggplot2)\n\nID <- sample(1:32, 128, replace = TRUE)\nAgeGrp <- sample(c(\"18-65\", \"65-75\", \"75-85\", \"85+\"), 128, replace = TRUE)\nID <- factor(ID)\nAgeGrp <- factor(AgeGrp)\ndata <- data_frame(ID, AgeGrp)\ndata\n#################################################################################\nplotstats <-                     \n  data %>%                    \n  group_by(AgeGrp) %>%                \n  summarise(count = n()) %>% \n  mutate(pct = count/sum(count)*100)  \n\nage_plot <-                 \n  ggplot(data,aes(x = AgeGrp)) +\n  geom_bar() + \n  geom_text(data = plotstats, aes(label=paste0(round(pct,1),\"%\"), #Add labels from above\n                                      y=pct), size=3.5, vjust = -1, colour = \"sky blue\") +\n  ggtitle(\"Count of Age Group\")\nage_plot\n\n###############################################################################\nbasic_plot <- function(df, x){\n  \n  plotstats <-\n    df %>%\n    group_by_(x) %>%               \n    summarise_(count = ~n()) %>%\n    mutate_(pct = ~count/sum(count)*100)\n  \n  plot <-                   \n    ggplot(df,aes_(x = x)) +\n    geom_bar() + \n    geom_text(data = plotstats, aes(label=paste0(round(pct,1),\"%\"),\n                                        y=pct), size=3.5, vjust = -1, colour = \"sky blue\")\n  \n  plot\n\n}\n\nfacet_plot(hmcare2010, quote(AgeGRP), quote(HCclient))\n\n\nbasic_plot(data, quote(AgeGrp))\n###############################################################################\nfacet_plot <- function(df, x, y){\n  \n  plotstats <-                   \n    df %>%\n    group_by_(y, x) %>%         \n    summarise_(count = ~n()) %>%\n    mutate_(pct = ~count/sum(count)*100)\n  \n  plot <-            \n    ggplot(df,aes_(x = x)) +\n    geom_bar() + \n    facet_wrap(y) +\n    geom_text(data = plotstats, aes(label=paste0(round(pct,1),\"%\"),\n                                    y=pct), size=3.5, vjust = -1, colour = \"sky blue\")\n  plot\n  \n}\n\nfacet_plot(hmcare2010, quote(AgeGRP), quote(HCclient))\n###################################################################################\n\n#Need to think about this one. \n\norder <-                               \n  AgeGRP10stats_byLA %>%\n  arrange(AgeGRP, -pct)\nordered_LAs <- ordered_age$LAcode[97:128]  \n\nage_plot_stacked_age_LA <-\n  ggplot(ordered_age, aes(x = LAcode, y = pct, fill = AgeGRP)) +\n  geom_col(position = \"stack\") +\n  scale_x_discrete(limits = ordered_LAs) +   \n  theme(axis.text.x = element_text(angle = 45, size = 10, hjust = 1)) +\n  ggtitle(\"Stacked proportions AgeGRP 2010 ordered by proportion of 85+\") +\n  xlab(\"Local Authority\") +\n  ylab(\"Perecentage receiving homecare\")\nage_plot_stacked_age_LA\n\n#################################################################################\n\n###NSE\nbasic_plot <- function(df, x){\n  \n  plotstats <-\n    df %>%\n    group_by(x) %>%               \n    summarise(count = n()) %>%\n    mutate(pct = count/sum(count)*100)\n  \n  plot <-                   \n    ggplot(df,aes(x = x)) +\n    geom_bar() + \n    geom_text(data = plotstats, aes(label=paste0(round(pct,1),\"%\"),\n                                    y=pct), size=3.5, vjust = -1, colour = \"sky blue\")\n  \n  plot\n  \n}\n\nbasic_plot(data, quote(AgeGrp))",
+    "created" : 1487370672475.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "3353698076",
+    "id" : "A6859E90",
+    "lastKnownWriteTime" : 1487372493,
+    "last_content_update" : 1487372493653,
+    "path" : "C:/Users/hedgi/Google Drive/Uni/Multimorb PhD/Analysis/soc_care_open_data/2010/function.R",
+    "project_path" : "function.R",
+    "properties" : {
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 2,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

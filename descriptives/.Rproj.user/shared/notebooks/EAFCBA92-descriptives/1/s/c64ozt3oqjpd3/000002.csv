@@ -1,0 +1,4 @@
+"0","commalarm_byLA <-"
+"0","  facet_plot(hmcare_telecare, quote(communityalarmonly), quote(LAcode)) +"
+"0","  ggtitle(""Community Alarm, Home care cohort, by Local Auhority"")"
+"0","commalarm_byLA"

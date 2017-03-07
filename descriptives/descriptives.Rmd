@@ -1,0 +1,1109 @@
+---
+title: "Social Care Survey Open Data"
+subtitle: "Descriptive stats"
+output: 
+  rmarkdown::html_document :
+    theme: readable
+    code_folding: hide
+    toc: yes
+    toc_float: yes
+    number_sections: yes
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(cache = TRUE)
+```
+
+
+#Introduction
+In part 1 I imported and wrangled the the Social Care Survey open data made available by the Scottish Government. I also assessed the missingness of each of the variables across the 3 years of data. This part of the analysis is to describe each variable in more detail.    
+
+#Conclusions
+
+This document is in narrative format and documents the step-by-step analysis of the open datasets. As you we saw in the Import and Wrangle analysis,it was evident that most of the missing data was found in the cohort of individuals that do not receive home care (i.e. hours of carer attending the individual's home) but *only* recieve meals or other services (telecare, laundry etc). The analysis in this document, therefore, concentrates on individuals that *did* receive homecare. It is a long document with lots of graphs. For this reason I have summarised the main findings here.
+
+* The Home care cohort has very little missing data, however some variables are of questionable quality.  
+      + Client Group levels (Dementia/Physical Disability/Infirmity due to Age etc.) are completed very differently across LAs.  
+      + Meals data are difficult to distinguish between "No Meals" and missing data (NA).  
+      + The open data has pre-banded, uneven levels of  hours of home care making it difficult to identify good or better bandings. The data is completed very well so "real" data when we get it should allow sensitivity analysis of bandings.  
+      + Living arrangements data has the most missingness in this cohort - levels reported vary significantly across LAs making quality questionable.  
+      + The Housing Type variable is of poor quality and unreliable.  
+      + The optional (i.e. optional for LAs to return to the SG) variables; Laundry, Shopping, and housing support show big variations is levels of delivery across LAs. Whether this variation is due to service provision or quality of returned data is difficult to tell - again a little unreliable.    
+  
+* The Staffing variable (Single or Multi-staffed) appears to be completed well and could possibly act as a proxy for increased need. There is a wide variation across LAs for levels of multi-staffed indiviudals.
+  
+* Telecare data is only collected in 2011 and 2012 and appears of good quality. A large proportion of those receiving home care also have a community alarm - almost half of all individuals. There is wide variation across LAs in provision of telecare so will be interesting to see any differences in outcomes. 
+
+* Significantly more females than males receive Home care services. I think greater than the proportion of females in the general population although I would need to check this out. Does this influence outcomes? I think worth investigating further. 
+
+
+#Preliminaries
+
+Load the dataframes created in the Import and Wrangle file
+
+```{r load_data}
+load("wrangled_datasets.RData")
+```
+
+Load the required packages
+
+```{r load_packages, message=FALSE}
+library(dplyr)
+library(ggthemes)
+library(forcats)
+library(cowplot)
+```
+
+A lot of the code written here was created on a test run I completed on the 2010 data alone. Using that code I have created a couple of functions that produce the plots required for the type of data we have. These functions save a lot of cut and paste and reduce the potential for code errors. I'll load them into the workspace now.
+
+```{r load_functions}
+
+#Define Basic Plot function
+basic_plot <- function(df, x){
+  
+  plotstats <-
+    df %>%
+    group_by_(x) %>%               
+    summarise_(count = ~n()) %>%
+    mutate_(pct = ~count/sum(count)*100)
+  
+  plot <-                   
+    ggplot(df,aes_(x = x)) +
+    geom_bar() + 
+    geom_text(data = plotstats, aes(label=paste0(round(pct,1),"%"),
+                                        y=pct), size=3.5, vjust = -1, colour = "sky blue")
+  
+  plot
+
+}
+
+#Define facet_plot function
+facet_plot <- function(df, x, y){
+  
+  plotstats <-                   
+    df %>%
+    group_by_(y, x) %>%         
+    summarise_(count = ~n()) %>%
+    mutate_(pct = ~count/sum(count)*100) %>%
+    mutate_(yeartot = ~sum(count))
+  
+  plot <-            
+    ggplot(df,aes_(x = x)) +
+    geom_bar() +
+    facet_wrap(y, scales = "free") +
+    geom_text(data = plotstats, aes(label=paste0(round(pct,1),"%"),
+                                    y=pct), size=3.5, vjust = -1, 
+              colour = "sky blue") +
+    geom_text(data = plotstats,
+            aes(label=paste0("Total number = ",yeartot), x = Inf, y= Inf),
+                hjust = 1, vjust = 1, colour = "black") +
+    theme_economist()
+  plot
+  
+}
+
+#Define multi-facet plot
+multifacet_plot <- function(df, x, y, z){
+  
+  plotstats <-                   
+    df %>%
+    group_by_(y, z, x) %>%         
+    summarise_(count = ~n()) %>%
+    mutate_(pct = ~count/sum(count)*100) %>%
+    mutate_(yeartot = ~sum(count))
+  
+  plot <-            
+    ggplot(df,aes_(x = x)) +
+    geom_bar() + 
+    facet_grid(as.formula(paste(y,"~", z)), scales = "free") +
+    geom_text(data = plotstats, aes(label=paste0(round(pct,1),"%"),
+                                    y=pct), size=3.5, vjust = -1, colour = "sky blue") +
+    geom_text(data = plotstats,
+            aes(label=paste0("Total number = ",yeartot), x = Inf, y= Inf),
+                hjust = 1, vjust = 1, colour = "black") +
+    theme_economist()
+  plot
+  
+}
+```
+
+
+For now, I am going to omit the observations with missing data for Age Group - it is such a small fraction and will make visualisation much better. For the same reason I will delete observations with missing data for bandHRSvol
+
+```{r remove_NA}
+hmcare_alldata <-
+  hmcare_alldata %>%
+  filter(!is.na(AgeGRP)) %>%
+  filter(!is.na(bandHRSvol))
+
+hmcare_sc10 <-
+  hmcare_sc10 %>%
+  filter(!is.na(AgeGRP)) %>%
+  filter(!is.na(bandHRSvol))
+
+hmcare_sc11 <-
+  hmcare_sc11 %>%
+  filter(!is.na(AgeGRP)) %>%
+  filter(!is.na(bandHRSvol))
+
+hmcare_sc12 <-
+  hmcare_sc12 %>%
+  filter(!is.na(AgeGRP)) %>%
+  filter(!is.na(bandHRSvol))
+```
+
+#Descriptive Statistics
+
+##Age
+
+I'll start with age.
+
+###National distribution
+
+First of all I'll visualise the distribution home care received by age across the country. The open data release pre-banded this variable into 5 categories.
+```{r age_by_year,fig.width=12}
+age_by_year <-
+  facet_plot(hmcare_alldata, quote(AgeGRP), quote(year)) + 
+  ggtitle("Count of Age Group by year")
+age_by_year
+```
+ 
+Here we can see fairly similar numbers and distributions across years. `r nrow(hmcare_sc10)` people received home care in 2010, `r nrow(hmcare_sc11)` in 2011, and `r nrow(hmcare_sc12)` in 2012. so a slight decrease over time.
+
+
+###Distribution by Local Authority
+```{r hmcare_only_age_LA, fig.width=18, fig.height=16}
+age_by_LA <-
+  facet_plot(hmcare_alldata, quote(AgeGRP), quote(LAcode)) +
+  ggtitle("Age Group by Local Authority")
+age_by_LA
+```
+
+In the above plot we can see large variations in the proportions of Age groups receiving home care. Whilst this plot is handy to see exact figures, it is diffcult to make comparisons - a stacked bar plot should be better:- 
+
+```{r stacked_age, fig.width=10}
+stackstats <-                   
+    hmcare_alldata %>%
+    group_by(LAcode, AgeGRP) %>%         
+    summarise(count = n()) %>%
+    mutate(pct = count/sum(count)*100)
+
+ordered_age <-      
+  stackstats %>%
+  arrange(AgeGRP, -pct)
+ordered_LAs <- ordered_age$LAcode[97:128]   #Order by 85+
+
+age_by_LA_stacked <-
+  ggplot(stackstats, aes(x = LAcode, y = pct, fill = AgeGRP)) +
+  geom_col(position = "stack") +
+  scale_x_discrete(limits = ordered_LAs) +#using above vector 
+  ggtitle("Stacked proportions AgeGRP ordered by proportion of 85+") +
+  xlab("Local Authority") +
+  ylab("Perecentage receiving homecare") +
+  theme_economist() +
+  theme(axis.text.x = element_text(angle = 45, size = 10, hjust = 1, vjust = 1)) 
+age_by_LA_stacked
+``` 
+
+So a lot easier to make comparisons here, I wonder if it would be even easier if I collapsed the 75-85 and 85+ age groups together? 
+
+```{r stacked_age_simplified, fig.width=12}
+hmcare_alldata_simplified <- hmcare_alldata     #Collapse the 75 - 85 and 85+ levels
+hmcare_alldata_simplified$AgeGRP <-              #in a new "simplified" dataframe
+  fct_collapse(hmcare_alldata_simplified$AgeGRP, 
+               over75 = c("75-<85", "85+"))
+
+stackstats <-                   
+    hmcare_alldata_simplified %>%
+    group_by(LAcode, AgeGRP) %>%         
+    summarise(count = n()) %>%
+    mutate(pct = count/sum(count)*100)
+
+ordered_age <-      
+  stackstats %>%
+  arrange(AgeGRP, -pct)
+ordered_LAs <- ordered_age$LAcode[65:96]   #Order by 75+ Females
+
+age_by_LA_stacked_simplified <-
+  ggplot(stackstats, aes(x = LAcode, y = pct, fill = AgeGRP)) +
+  geom_col(position = "stack") +
+  scale_x_discrete(limits = ordered_LAs) +#using above vector +
+  ggtitle("Stacked proportions AgeGRP 2010 ordered by proportion of Females 75+") +
+  xlab("Local Authority") +
+  ylab("Perecentage receiving homecare") +
+  theme_economist() +
+  theme(axis.text.x = element_text(angle = 45, size = 10, hjust = 1, vjust = 1)) 
+age_by_LA_stacked_simplified
+```
+
+So certainly a lot easier (I think) when we compare over 75s with the other 2 populations. I've ranked this plot by proportion of Females over the age 75.
+
+##Gender
+Next up to to investigate is Gender. 
+
+###National Distribution
+
+```{r gender_national, fig.width=10}
+gender_by_year <-
+  facet_plot(hmcare_alldata, quote(GenderISO), quote(year)) + 
+  ggtitle("Count of Gender, by year")
+gender_by_year
+```
+
+So fairly similar distributions across years and significantly more females recieving home care. Why? Because they live longer?
+
+###Distribution by Age
+
+```{r hmcare_only_gender_age, fig.width=10, fig.height=8}
+gender_by_age <-
+  facet_plot(hmcare_alldata, quote(GenderISO), quote(AgeGRP)) +
+  ggtitle("Gender by Age Group")
+gender_by_age
+```
+
+So, pretty easy to see the the gradual increase in proportions of females through the age groups. There is also a disparity in absolute numbers - There are big increases in the size of age groups with females accounting for the majority of this. Comparing absoulte numbers we see there are less men in the 65-75 group compared to 18-65 and also less men in 85+ compared to 75-85. For females these absolute numbers increases.So I guess the question is - do females make up e.g. 76% of the over 85 population? I don't think so (need to check). If not - why do they receive a higher proportion of social care?
+
+
+###Distribution by LA
+
+I don't expect there to be much variation across LAs but I should check.
+
+```{r gender_by_LA, fig.width=18, fig.height=16}
+gender_by_LA <-
+  facet_plot(hmcare_alldata, quote(GenderISO), quote(LAcode)) +
+  ggtitle("Gender, by Local Authority")
+gender_by_LA
+```
+
+Actually, there is a little more than I thought - between 62% and 70% female. I'll stack this again and add age as a facet.
+
+```{r gender_by_LA_byAge_stacked, fig.width=12, fig.height=10}
+stackstats <-                   
+    hmcare_alldata_simplified %>%
+    group_by(LAcode, AgeGRP, GenderISO) %>%         
+    summarise(count = n()) %>%
+    mutate(pct = count/sum(count)*100)
+
+ordered_gender <-      
+  stackstats %>%
+  arrange(AgeGRP, GenderISO, -pct)
+ordered_LAs <- ordered_gender$LAcode[161:192]  #Order by Female over75s
+
+gender_by_LA_byAge_stacked <-
+  ggplot(stackstats, aes(x = LAcode, y = pct, fill = GenderISO)) +
+  geom_col(position = "stack") +
+  facet_grid(AgeGRP ~ .) +
+  scale_x_discrete(limits = ordered_LAs) +#using above vector
+  ggtitle("Stacked proportions Gender, ordered by proportion of females over75") +
+  xlab("Local Authority") +
+  ylab("Perecentage receiving homecare") +
+  theme_economist() +
+   theme(axis.text.x = element_text(angle = 45, size = 10, hjust = 1, vjust = 1))
+gender_by_LA_byAge_stacked
+```
+
+So a little variation across LAs when comparing Gender and Age Group but no major outliers I don't think. I've arranged this by proportion of females over the Age of 75 receiving home care. No obvious pattern between rural/urban or rich/poor (maybe some more poorer council areas over to the left, but richer ones like Aberdeen of Shetland in the middle).
+
+##Client Group  
+
+Next up in the dataframe is Client Group. Using the metadata file published alongside the open data we can see this variable has been pre-grouped before release - presumably due to small numbers.   
+
+* Dementia and Mental Health are combined.  
+
+* "Other" is a combination of the Addiction, Palliative Care, Carers, and Other vulnerable groups designations. "Carers" itself is defined as home care provided to aid a family carer."Other vulnerable groups" includes; HIV/AIDs, Aquired Brain Injury, Homeless, and Women escaping domestic violence.   
+
+* The remainin groups are; Learning Disablility, Physical Disability, Problems arising from infirmity due to age.  
+
+Published Social Care Survey reports identify the potential for poor classification with this variable. Dementia is known to be underecorded. Also Physical Disability and Infirmity are often misclassified and can often be interchangeable - can we see this in the data?
+
+###National distribution
+```{r ClientGRP_national, fig.width=12}
+ClientGRP_by_year <-
+  facet_plot(hmcare_alldata, quote(ClientGRP), quote(year)) + 
+  ggtitle("Count of ClientGRP, by year") +
+  theme(axis.text.x = element_text(angle = 45, size = 12, hjust = 1, vjust = 1))
+ClientGRP_by_year
+```
+
+Here we can see similar distributions across the years. The highest proportion of clients are classified as "Infirmity due to Age", followed by"Physical Disability". Next up will be to see how these vary according to Age.
+
+###Distribution by Age
+```{r ClientGRP_age, fig.width=10, fig.height=8}
+ClientGRP_by_age <-
+  facet_plot(hmcare_alldata, quote(ClientGRP), quote(AgeGRP)) + 
+  ggtitle("Count of ClientGRP, by Age group") +
+  theme(axis.text.x = element_text(angle = 45, size = 6, hjust = 1, vjust = 1))
+ClientGRP_by_age
+```
+
+Personally I would not have grouped Mental health and Dementia together. I think it would be fair to say these are likely to be 2 very different groups. As we can see the highest proportion for this group is in the 18-65 age bracket - where mental health is far more likely to be the reason. We know dementia is poorly recorded which explains the lower proportions of this bracket across the other age bands. 
+
+As expected, Learning disability has a much higher propotion in the youngest age band, with virtually no clients recorded over the age of 75 reflecting life expectancy for those with LD. 
+
+Physical Disability has a higher ratio in the 18-65 group also. Does this reflect thise with e.g. MS or Aquired Brain injury? Difficult to say.
+
+Unsurprisingly, Infirmity due to age has increasing proportions through the Age bands. 
+Other (Addictions, Palliative Care, Carers etc), has decresing propotions as age increases. 
+
+Almost all the missing data is in the 18-65 Age group. I'm not sure why this would be - perhaps confined to 1 LA??
+
+### Distirbution by Gender
+Before I look at LA better check differences by Gender.
+
+```{r ClientGRP_by_age_and_gender, fig.width=14, fig.height=10}
+ClientGRP_by_age_and_gender <-
+  multifacet_plot(hmcare_alldata, quote(ClientGRP), quote(GenderISO),
+                  quote(AgeGRP)) +
+  theme(axis.text.x = element_text(angle = 45, size = 8, hjust = 1, vjust = 1)) +
+  ggtitle("Client Group, by Age and Gender")
+ClientGRP_by_age_and_gender
+```
+
+
+Higher proportions of Males for LD and higher proption females due to Infirmity. The latter reflects the age pattern. I'm not aware of higher prevelance LD in Males but that may very well be the case. 
+
+###Distribution by Local Authority.
+```{r ClientGRp_by_LA, fig.width=18, fig.height=16}
+ClientGRP_by_LA <-
+  facet_plot(hmcare_alldata, quote(ClientGRP), quote(LAcode)) +
+  ggtitle("ClientGRP, by Local Authority") +
+  theme(axis.text.x = element_text(angle = 45, size = 6, hjust = 1, vjust = 1))
+ClientGRP_by_LA
+```
+
+A bit of a messy plot here due to axis labels being big but anyhow we can see the huge variation across Local Authorities. This is almost certainly down to classification practcies at the local level. Some authorities have virtually no clients recorded as Infirm whereas others have 75% recorded as Infirm. Given this sort of variation I think it would be difficult to rely on this variable for any meaningful analysis. 
+
+##Home Care Hours
+Variable of most interest! Again this variable was banded pre-publication of the data. If I'm honest they aren't the most helpful bandings - something more ordinal would have been better e.g. some bands describe a value between 2hrs of home care, others between 5hrs of home care ("2-4", "5-10"). The home care hours data is provided with 5 variables; number of Local Authority provided hours, Private provided hours, Voluntary Organisation provided hours, Personal Care Hours, and Total hours. There are some people who will receive a variety of these and I may turn to this as a sub-group later. For the moment I will concentrate on total figures. 
+
+###National Distribution
+1st of all I will plot the bandHRSTT variable which is the cumulative total of all hours of care regardless of provider.
+
+```{r bandHRSTT_national, fig.width=16, fig.height=8}
+bandHRSTT_national <-
+  facet_plot(hmcare_alldata, quote(bandHRSTT), quote(year)) +
+  ggtitle("Total Hours Home Care, by year") +
+  theme(axis.text.x = element_text(angle = 45, size = 10, hjust = 1, vjust = 1))
+bandHRSTT_national
+```
+
+Difficult to compare. I am going to collapse some of these bands together for easier analysis. Before I looked at the data I had thought I'd like to bin the hours into 0-5, 5-10, 10-15, 15-20, and 20 plus. Because of the way this data is grouped I can't do that. For now I'll go for 0-4 and 4-10 then carry on. I will do this for all the bandHRS variables in the alternative, simplified, dataframe.
+
+```{r simplify_bandHRS, warning=FALSE}
+
+hmcare_alldata_simplified$bandHRSLA <- 
+  fct_collapse(hmcare_alldata_simplified$bandHRSLA, 
+               `<4` = c("<1", "1-2", "2-4"),
+               `4-10` = c("4-6", "6-8", "8-10"),
+               over20 = c("20-30", "30-40", "40-50", "over50"))
+
+hmcare_alldata_simplified$bandHRSpri <- 
+  fct_collapse(hmcare_alldata_simplified$bandHRSpri, 
+               `<4` = c("<1", "1-2", "2-4"),
+               `4-10` = c("4-6", "6-8", "8-10"),
+               over20 = c("20-30", "30-40", "40-50", "over50"))
+
+hmcare_alldata_simplified$bandHRSvol <- 
+  fct_collapse(hmcare_alldata_simplified$bandHRSvol, 
+               `<4` = c("<1", "1-2", "2-4"),
+               `4-10` = c("4-6", "6-8", "8-10"),
+               over20 = c("20-30", "30-40", "40-50", "over50"))
+
+hmcare_alldata_simplified$bandHRSTT <- 
+  fct_collapse(hmcare_alldata_simplified$bandHRSTT, 
+               `<4` = c("<1", "1-2", "2-4"),
+               `4-10` = c("4-6", "6-8", "8-10"),
+               over20 = c("20-30", "30-40", "40-50", "over50"))
+
+hmcare_alldata_simplified$bandHRSPC <- 
+  fct_collapse(hmcare_alldata_simplified$bandHRSPC, 
+               `<4` = c("<1", "1-2", "2-4"),
+               `4-10` = c("4-6", "6-8", "8-10"),
+               over20 = c("20-30", "30-40", "40-50", "over50"))
+```
+
+###National Distribution (2)
+OK, I'll retry with the collapsed levels.
+
+```{r bandHRSTT_national_simplified, fig.width=12}
+bandHRSTT_national_simplified <-
+  facet_plot(hmcare_alldata_simplified, quote(bandHRSTT), quote(year)) +
+  ggtitle("Total Hours Home Care, by year") +
+  theme(axis.text.x = element_text(angle = 45, size = 10, hjust = 1, vjust = 1))
+bandHRSTT_national_simplified
+```
+
+So, a little easier to visualise with collapsed bandings. Similar distributions over years. The Social Care Survey report suggests that private and voluntary organisations tend to pick up larger care packages whereas Local Authorities tend to concentrate on smaller packages of care. Can we visualise this and see if it has changed over time?
+
+```{r provider_comparison, fig.width=18, fig.height=16}
+bandHRSLA_byyear <-
+  facet_plot(hmcare_alldata_simplified, quote(bandHRSLA), quote(year)) +
+  ggtitle("Local Authority provided hours, by year")
+
+bandHRSpri_byyear <-
+  facet_plot(hmcare_alldata_simplified, quote(bandHRSpri), quote(year)) +
+  ggtitle("Private company provided hours, by year")
+
+bandHRSvol_byyear <-
+  facet_plot(hmcare_alldata_simplified, quote(bandHRSvol), quote(year)) +
+  ggtitle("Voluntary provided hours, by year")
+
+plot_grid(bandHRSLA_byyear, bandHRSpri_byyear, bandHRSvol_byyear, ncol = 1)
+```
+
+So there are a couple of errors here that I will get rid of but before I do there is some useful information that we will lose in the next plot. 
+
+In order to get better axis sizes (particularly in the voluntary plot) I will remove the "Zero" hours observations. What is interesting, before I do that, is in the LA plot at the top we see the percentage of "Zero" hours increasing over time. Essentially this is the proportion of Home care that the LA is purchasing from other organisations rather than providing the care in house. LAs are gradually farming more care out. The main beneficiary seems to be private organisations who have steadily decreasing proportions of "Zero" hours.I'm pretty sure LAs are still providing the majority of care - we'll see better on the next plot.
+
+I'll replot.
+
+```{r provider_comparison_2, fig.width=18, fig.height=16}
+bandHRSLA_byyear <-
+  facet_plot(hmcare_alldata_simplified[hmcare_alldata_simplified$bandHRSLA != "Zero",]
+             , quote(bandHRSLA), quote(year)) +
+  ggtitle("Local Authority provided hours, by year")
+
+bandHRSpri_byyear <-
+  facet_plot(hmcare_alldata_simplified[hmcare_alldata_simplified$bandHRSpri != "Zero",]
+             , quote(bandHRSpri), quote(year)) +
+  ggtitle("Private company provided hours, by year")
+
+bandHRSvol_byyear <-
+  facet_plot(hmcare_alldata_simplified[hmcare_alldata_simplified$bandHRSvol != "Zero",]
+             ,quote(bandHRSvol), quote(year)) +
+  ggtitle("Voluntary provided hours, by year")
+
+plot_grid(bandHRSLA_byyear, bandHRSpri_byyear, bandHRSvol_byyear, ncol = 1)
+```
+
+Local Authorities still handle the majority of home care in-house, by quite a margin. However, the absolute numbers confirm that LAs are providing less in-house care and purchasing that care from private companies instead.  
+
+Comparing the proportions of hours of care delivered between LAs and private companies we can see that LAs do indeed have a higher proportion of very low (<4hr) care packages, and that private companies have higher proportions of larger (>10hr) packages. 
+
+Voluntary organisations provide a significantly higher porportion of very large (>20hr) packages with much smaller numbers (bearing in mind 590 observations with missing data for voluntary hours have been removed). 
+
+###Distribution by Age and Gender
+Focusing on the Total hours of home care again, I'll look at the distribution by Age and Gender.
+
+```{r bandHRSTT_byAge_and)gender, fig.width=10}
+bandHRSTT_byAge_and_gender <-
+  multifacet_plot(hmcare_alldata_simplified, quote(bandHRSTT), quote(GenderISO),
+                  quote(AgeGRP)) +
+  ggtitle("Total Home Care Hours 2010-2012, by Age and Gender")
+bandHRSTT_byAge_and_gender
+```
+
+So fairly similar distributions across genders and age (The y-axis makes this a little awkward to see).
+
+###Distribution by Local Authority
+Again using the total hours provided across all 3 years worth of data I'll look at the distribution by LA
+
+```{r bandHRSTT_byLA, fig.width=18, fig.height=16}
+bandHRSTT_byLA <-
+  facet_plot(hmcare_alldata_simplified, quote(bandHRSTT), quote(LAcode)) +
+  ggtitle("Total Home Care Hours 2010-2012, by Local Authority")
+bandHRSTT_byLA
+```
+
+So we can see some pretty wide variations here. To make comparison a little easier I'll stack the data.
+
+```{r stacked_bandHRSTT_byLA, fig.width=10}
+stackstats <-                   
+    hmcare_alldata_simplified %>%
+    group_by(LAcode, bandHRSTT) %>%         
+    summarise(count = n()) %>%
+    mutate(pct = count/sum(count)*100)
+
+ordered_bandHRSTT <-                   #Create a vector with LAs ordered by <4hrs
+  stackstats %>%
+  arrange(bandHRSTT, -pct)
+ordered_LAs <- ordered_bandHRSTT$LAcode[1:32] # Order by <4
+
+bandHRSTT_stacked_LA <-
+  ggplot(stackstats, aes(x = LAcode, y = pct, fill = bandHRSTT)) +
+  geom_col(position = "stack") +
+  scale_x_discrete(limits = ordered_LAs) +   #using above vector
+  ggtitle("Total Home Care Hours 2010-2012, ordered by proportion of <4hrs") +
+  xlab("Local Authority") +
+  ylab("Perecentage receiving homecare") +
+  theme_economist() +
+    theme(axis.text.x = element_text(angle = 45, size = 10, hjust = 1, vjust = 1)) 
+bandHRSTT_stacked_LA
+```
+
+So Angus seems like a bit of an outlier with almost 70% of its clients receiving less than 4hrs of Home care. There doesn't seem to be any obvious pattern to me - rural/urban or rich/poor LAs seem to be distributed randomly. Big variations in the provision of care - does this affect outcomes??
+
+###Distribution by ClientGRP
+I know I said the ClientGRP variable is not completed very well, but I'll plot Total Home care hours by ClientGRP anyway - just for a look....
+
+```{r bandHRSTT_byClientGRP, fig.width=16, fig.height=9}
+bandHRSTT_by_ClientGRP <-
+  facet_plot(hmcare_alldata_simplified, quote(bandHRSTT), quote(ClientGRP)) +
+  ggtitle("Total home care hours 2010-2012, by Client Group")
+bandHRSTT_by_ClientGRP
+```
+
+And again, this time with Age group as an added facet.
+
+```{r bandHRSTT_by_ClientGRP_and_Agegroup, fig.width=18, fig.height=16}
+bandHRSTT_by_ClientGRP_and_Agegroup <-
+  multifacet_plot(hmcare_alldata_simplified, quote(bandHRSTT), quote(AgeGRP),
+                  quote(ClientGRP)) +
+  ggtitle("Total Home Care Hours 2010-2012, by Client Group and Age Group")
+bandHRSTT_by_ClientGRP_and_Agegroup
+```
+
+
+##Meals
+
+As I have mentioned before the meals data is pretty poor. The Social Care Survey reports acknowledge as much saying something along the lines of, "...meals data as proved difficult for Local Authorities to capture." 
+
+What is noticeable from the data is that it is completed for 2010 but not 2011 or 2012. I'm going to visulaise quickly to get an idea of how well 2010 is completed. 
+
+###National Distribution
+
+```{r meals_national, fig.width=10}
+meals_national <-
+  facet_plot(hmcare_alldata, quote(meals), quote(year)) +
+  ggtitle("Meals for home care clients, by year")
+meals_national
+```
+
+Ok. Interesting. Is the data NA (i.e. missing) or is it "No meals" as in 2010? Difficult to know. Do we really think only 10% of Home care clients get meals delievered? I really don't know. As alluded to earlier, I think we cannot rely on this variable for any meaningful analysis. 
+
+###Distribution by Local Authority
+
+Before I drop it, I'd like to see if the data is collected really well in a small number of LAs.I'll do 3 seperate facet plots for each years worth of data.
+
+####2010
+
+```{r meals_by_LA_2010, fig.width=18, fig.height=16}
+meals_by_LA_2010 <-
+  facet_plot(hmcare_sc10, quote(meals), quote(LAcode)) +
+  ggtitle("Meals for home care clients 2010, by Local Authority")
+meals_by_LA_2010
+```
+
+####2011
+```{r meals_by_LA_2011, fig.width=18, fig.height=16}
+meals_by_LA_2011 <-
+  facet_plot(hmcare_sc11, quote(meals), quote(LAcode)) +
+  ggtitle("Meals for home care clients 2011, by Local Authority")
+meals_by_LA_2011
+```
+
+####2012
+```{r meals_by_LA_2012, fig.width=18, fig.height=16}
+meals_by_LA_2012 <-
+  facet_plot(hmcare_sc12, quote(meals), quote(LAcode)) +
+  ggtitle("Meals for home care clients 2012, by Local Authority")
+meals_by_LA_2012
+```
+
+So again, illustrates the data is pretty unreliable. Although, proportions seem to be fairly consistant across LAs, I suspect there is a lot of undereporting. I also think there is no clear distinction betwen missing data and "No meals". Eilean Siar is reported as 100% No Meals in 2010 and 100% NA in the following 2 years - I know that people get meals in the Western Isles. The range of those getting meals is 1.4% in Edinburgh to 35% in Shetland - I find that difficult to believe. 
+
+
+##Living Arrangements
+###National Distribution
+
+```{r LivingArr, fig.width=10}
+LivingArr_national <-
+  facet_plot(hmcare_alldata, quote(LivingArr), quote(year)) +
+  ggtitle("Living Arrangments of Home care clients, by year")
+LivingArr_national
+```
+
+So a decent amount of missing data here - can we identify if it is missing from 1 particular place?
+
+###Distribution by Local Authority
+```{r LivingArr_byLA, fig.width=18, fig.height=16}
+LivingArr_byLA <-
+  facet_plot(hmcare_alldata, quote(LivingArr), quote(LAcode)) +
+  ggtitle("Living Arrangements Home Care Clients, by Local Authority")
+LivingArr_byLA
+```
+
+So, another varible that is shows a wide variety of completeness. 18 out of the 32 LAs complete this variable with less than 10% missing data. In the others, the missingness varies from 19.6% in East Dunbartonshire to 100% in the Borders. I can't see any meaningful, comparisons being drawn with this data due to quality.
+
+##Staff
+###National distribution
+This variable measure whether 2 or more staff are required for a client. It may be a good proxy variable for need - extra staff generally required for very immobile cleints. 
+```{r Staff_national, fig.width=10}
+Staff_national <-
+  facet_plot(hmcare_alldata, quote(Staff), quote(year)) +
+  ggtitle("Staffing for home care clients, by year")
+Staff_national
+```
+
+So a small, but increasing, proportion of patients require 2 or more staff. Who are they?
+
+###Distribution by Age and Gender
+```{r Staff_byAge_andGender, fig.width=10}
+Staff_byAge_andGender <-
+multifacet_plot(hmcare_alldata, quote(Staff), quote(GenderISO), quote(AgeGRP)) +
+  ggtitle("Staffing for Home care clients, by Age and Gender")
+Staff_byAge_andGender
+```
+
+So the y-axis are fixed to gender which means it is fairly easy to compare across age bands within genders - i.e. the absolute numbers of multistaffed clients is fairly similar for males across ages (slight decrease in 85+), whereas slight increase for 75-85 age group for females although this represents a smaller proportion of overall clients in this group. In general - under 75s have slightly higher proportions of multi-staff.
+
+To make comparison of absolute numbers across genders I will flip the chart - same data, different view
+
+```{r Staff_byGender_andAge, fig.width=8, fig.height=8}
+Staff_byGender_andAge <-
+  multifacet_plot(hmcare_alldata, quote(Staff), quote(AgeGRP), quote(GenderISO)) +
+  ggtitle("Staffing for Home care clients, by Gender and Age")
+Staff_byGender_andAge
+```
+
+So here it is easier to see proportions of multistaff are fairly similar across sexes at different ages and also demonstrates the big difference in numbers receiving home care betwen sexes. 
+
+###Distribution by Client Group
+
+Here, I am mainly interested to see if Learning Disability is associated with multi-staffing (with all the caveats re Client Group data quality)
+
+```{r Staff_by_ClientGRP, fig.width=10}
+Staff_by_ClientGRP <-
+  facet_plot(hmcare_alldata, quote(Staff), quote(ClientGRP)) +
+  ggtitle("Staffing for Home Care Clients, by Client Group")
+Staff_by_ClientGRP
+```
+
+The answer to that question being no. Interestingly of the small proportion of missing data for Client Group - 15% are multi-staffed. 
+
+###Distribution by Local Authority
+Any LAs with significantly higher proportions of multi-staffed clients?
+
+```{r Staff_by_LA, fig.width=18, fig.height=16}
+Staff_by_LA <-
+  facet_plot(hmcare_alldata, quote(Staff), quote(LAcode)) +
+  ggtitle("Staffing for home care clients, by Local Authority")
+Staff_by_LA
+```
+
+There actuall is a bit of varition that might be worth looking at on a stacked chart. Dundee City has only single staffed clients??? I'd be wary that this is true.
+
+```{r stacked_Staff_byLA, fig.width=10}
+stackstats <-                   
+    hmcare_alldata %>%
+    group_by(LAcode, Staff) %>%         
+    summarise(count = n()) %>%
+    mutate(pct = count/sum(count)*100)
+
+ordered_Staff <-                   #Create a vector with LAs ordered by <4hrs
+  stackstats %>%
+  arrange(Staff, -pct)
+ordered_LAs <- ordered_Staff$LAcode[1:32] # Order by <4
+
+Staff_stacked_LA <-
+  ggplot(stackstats, aes(x = LAcode, y = pct, fill = Staff)) +
+  geom_col(position = "stack") +
+  scale_x_discrete(limits = ordered_LAs) +   #using above vector
+  ggtitle("Staffing for Home Care Clients, ordered by 2 or more staff") +
+  xlab("Local Authority") +
+  ylab("Perecentage receiving homecare") +
+  theme_economist() +
+  theme(axis.text.x = element_text(angle = 45, size = 10, hjust = 1, vjust = 1))
+Staff_stacked_LA
+```
+
+Multi-staffing ranges from 1.1% in South Ayrshire to 17.9% in Fife which is quite a large range. I can't see any obvious pattern. 
+
+##Housing type
+It should be noted that the "OV" part of the Housing type variable name means "Optional variable". I suspect many will not have taken up the option!!!
+
+
+The metadata published with the open data gives us a little more detail on the categories the variable uses:-
+
+*  Mainstream Housing
+  + This is a private home (either owned/mortgaged or rented) which has not been adapted for special needs in any way.  
+
+*  Supported Housing
+  + Special housing: premises that have been adapted to meet the need of people with particular needs, e.g. wheelchair access.
+  + Amenity housing: a group of premises with special modifications for particular needs but not supported by a warden.
+  + Sheltered housing: self-contained premises linked to a warden who provides specialist support to tenants.
+  + Supported accommodation: A home where external support is put in place to help the tenants live as independently as possible.
+• Other
+
+Absolutely no information on what "Other" means!!
+
+
+###National distribution
+```{r HousingType_OV_national, figwidth=14, fig.height=6}
+HousingType_OV_national <-
+  facet_plot(hmcare_alldata, quote(HousingType_OV), quote(year)) +
+  theme(axis.text.x = element_text(angle = 45, size = 10, hjust = 1, vjust = 1)) +
+  ggtitle("Housing Type of Home care clients, by year")
+HousingType_OV_national
+```
+
+Hmmm. A really big increase in the proprotion of Supported Housing across the years. Does this reflect better data quality or changes to reporting criteria? I can't imagine there was a sudden increase in the amount of supported accomodation available.  I'll need to do all sub-analyses by year. Queries over quality here again...
+
+###Distribution by Age and Gender
+
+```{r HousingType_OV_byAge_andGender, fig.width=8, fig.height=14}
+#2010
+Housing_byAge_andGender10 <-
+  multifacet_plot(hmcare_sc10, quote(HousingType_OV), quote(AgeGRP), 
+                  quote(GenderISO)) +
+  theme(axis.text.x = element_text(angle = 45, size = 10, hjust = 1, vjust = 1)) +
+  ggtitle("Housing type Home care Clients 2010, by Age and Gender")
+
+#2011
+Housing_byAge_andGender11 <-
+  multifacet_plot(hmcare_sc11, quote(HousingType_OV), quote(AgeGRP), 
+                  quote(GenderISO)) +
+  theme(axis.text.x = element_text(angle = 45, size = 10, hjust = 1, vjust = 1)) +
+  ggtitle("Housing type Home care Clients 2011, by Age and Gender")
+
+#2012
+Housing_byAge_andGender12 <-
+  multifacet_plot(hmcare_sc12, quote(HousingType_OV), quote(AgeGRP), 
+                  quote(GenderISO)) +
+  theme(axis.text.x = element_text(angle = 45, size = 10, hjust = 1, vjust = 1)) +
+  ggtitle("Housing type Home care Clients 2012, by Age and Gender")
+
+plot_grid(Housing_byAge_andGender10, Housing_byAge_andGender11,
+          Housing_byAge_andGender12, ncol = 1)
+```
+
+Similar distributions across age and gender. We can see the gradual increase in proportions of Supported housing is across all ages and both sexes. 
+
+###Distribution by LA
+```{r Housing_byLA_byyear_stacked, fig.width=12}
+stackstats <-                   
+    hmcare_alldata %>%
+    group_by(LAcode, year, HousingType_OV) %>%         
+    summarise(count = n()) %>%
+    mutate(pct = count/sum(count)*100)
+
+ordered_housing <-      
+  stackstats %>%
+  arrange(year, -pct)
+ordered_LAs <- ordered_housing$LAcode[1:32]  #Order by Female over75s
+
+Housing_byLA_byyear_stacked <-
+  ggplot(stackstats, aes(x = LAcode, y = pct, fill = HousingType_OV)) +
+  geom_col(position = "stack") +
+  facet_grid(year ~ .) +
+  scale_x_discrete(limits = ordered_LAs) +#using above vector
+  ggtitle("Stacked proportions Housing Type, ordered by proportion ...") +
+  xlab("Local Authority") +
+  ylab("Perecentage receiving homecare") +
+  theme_economist() +
+  theme(axis.text.x = element_text(angle = 45, size = 10, hjust = 1, vjust = 1)) 
+Housing_byLA_byyear_stacked
+```
+
+We see here that any variation previously noted in the distribution of Housing Type is enitrely down to reporting practices. In 2010, the majority of LAs reported 100% mainstream housing. A minority reported almost 100% Supported Accom.
+
+This continued in 2011 with a few LAs flipping from entirely Mainstream to entirely Supported. 
+
+2012 saw an increase in LAs flipping from Mainstream to Supported and also a couple deciding everybody should be in "other".
+
+My own personal favourite is Dumfries and Galloway who reported almost 100% "Other" in 2010, almost 100% "Mainstream" in 2011, and almost 100% "Supported Housing" in 2012. 
+
+This variable is useless. 
+
+##Laundry
+I'm not holding out big hopes here - this is another optional variable.
+
+###National Distribution
+
+```{r Laundry_national, fig.width=10}
+laundry_national <-
+  facet_plot(hmcare_alldata, quote(Laundry_OV), quote(year)) +
+  ggtitle("Home care clients receiving Laundry service, by year")
+laundry_national
+```
+
+###Distribution by Local Authority
+I think I'll jump straight to LA distribution to see how well it is reported.
+
+```{r laundry_LA, fig.width=18, fig.height=16}
+laundry_byLA <-
+  facet_plot(hmcare_alldata, quote(Laundry_OV), quote(LAcode)) +
+  ggtitle("Home care clients receiving laundry service, by LA")
+laundry_byLA
+```
+
+So 14 LAs either don't provide Laundry services or don't report on it. It could be either. I suppose the question is: do we think the 5% of home care clients receiving laundry service have different outcomes from those that don't? 
+
+I'm not going to do any further breakdown analyses here but may use this variable to derive a new "other services" variable. I want to look at the other optional variables first.
+
+##Shopping
+###National Distribution
+```{r Shopping_national, fig.width=10}
+shopping_national <-
+  facet_plot(hmcare_alldata, quote(Shopping_OV), quote(year)) +
+  ggtitle("Home care clients receiving Shopping service, by year")
+shopping_national
+```
+I suspect we may have the same story as Laundry here...
+
+###Distribution by Local Authority
+```{r shopping_LA, fig.width=18, fig.height=16}
+shopping_byLA <-
+  facet_plot(hmcare_alldata, quote(Shopping_OV), quote(LAcode)) +
+  ggtitle("Home care clients receiving Shopping service, by LA")
+laundry_byLA
+```
+
+Exactly the same LAs returning data as for Laundry. 
+
+##Housing Support
+Metadata description:- 
+
+Housing support services help people to live as independently as possible in the community. They can either be provided in your own home or in accommodation such as sheltered housing or a hostel for homeless people.
+
+Housing support services help people manage their home in different ways. These include assistance to claim welfare benefits, fill in forms, manage a household budget, keep safe and secure, get help from other specialist services, obtain furniture and furnishings, and help with shopping and housework. The type of support that is provided will aim to meet the specific needs of an individual person.
+
+Housing support services are mainly provided by local authorities, housing associations and voluntary sector organisations. They help a wide range of people to live independently in the community, by providing practical support and advice. People who may benefit from housing support services include.   
+
+* older people.  
+* homeless people.     
+* people with physical or learning disabilities.    
+* people with mental health problems.       
+* people with drug or alcohol problems.       
+* people with HIV or AIDS.     
+* care leavers and.          
+* women escaping domestic violence  
+
+There are many different kinds of services. Examples include home adaptations for disabled people; visiting support to help with housework and shopping; resettlement support; and community alarms. Services can be provided in someone's own home or within temporary accommodation such as homeless hostels and refuges.
+
+###National Distribution
+```{r Housing_national, fig.width=10}
+housingsupp_national <-
+  facet_plot(hmcare_alldata, quote(HousingSupport_OV), quote(year)) +
+  ggtitle("Home care clients receiving Shopping service, by year")
+housingsupp_national
+```
+
+Higher proportions of this variable. 
+
+###Distribution by Local Authority.
+
+```{r Housing_support_byLA, fig.width=18, fig.height=16}
+housingsupport_byLA <-
+  facet_plot(hmcare_alldata, quote(HousingSupport_OV), quote(LAcode)) +
+  ggtitle("Home care clients receiving Housing Support, by LA")
+housingsupport_byLA
+```
+
+Slightly more LAs providing/reporting on this service. 
+
+##Other services.
+I am going to derive a new variable "Other Services" by identifying those that receive *any* of the following - Laundry, Shopping, Housing Support. I'll then describe this variable as above by age, gender etc.
+
+###Create variable
+```{r create_other_service}
+hmcare_alldata <-
+  hmcare_alldata %>%
+  mutate(other_services = ifelse(Laundry_OV == "Yes" |
+                                   Shopping_OV == "Yes"|
+                                   HousingSupport_OV == "Yes",
+                                 "Yes", "No"))
+
+hmcare_alldata$other_services <- factor(hmcare_alldata$other_services,
+                                        levels = c("Yes", "No"),
+                                        labels = c("Yes", "No"))
+```
+
+###National Distribution
+```{r otherservice_national, fig.width=10}
+otherservice_nat <-
+  facet_plot(hmcare_alldata, quote(other_services), quote(year)) +
+  ggtitle("Other services for Home care clients, by year")
+otherservice_nat
+```
+
+###Distribution by Local Authority
+```{r otherserv_LA, fig.width=18, fig.height=16}
+otherserv_byLA <-
+  facet_plot(hmcare_alldata, quote(other_services), quote(LAcode)) +
+  ggtitle("Other services for home care clients, by LA")
+otherserv_byLA
+```
+
+I had wondered if this derived variable may have been of some use. Ideally it would be nice to compare outcomes for those that do or do not receive extra services. Having said that the quality of the data again is questionable here. The variations are so large. Is that due to real variations in provision of care - or is it due to how well this data is reported. Given these are optional variables I don't think they can be trusted.
+
+##Community Alarm only
+2011 and 2012 report data on 3 telecare variables. I will look at these now. 1st of all I'll create a subset dataframe omitting 2010.
+
+```{r create20112012}
+hmcare_telecare <-
+  hmcare_alldata_simplified %>%
+  filter(year != "2010")
+```
+
+###National Distribution
+```{r commalarm_nat, fig.width=8}
+commalarm_nat <-
+  facet_plot(hmcare_telecare, quote(communityalarmonly), quote(year)) +
+  ggtitle("Community alarm for those receiving home care, by year")
+commalarm_nat
+```
+
+So a large proportion of clients receiving home care also have a community alarm.
+
+###Distribution by Age and Gender
+```{r commalarm_age_gender, fig.width=10}
+commalarm_byAgeandGender <-
+  multifacet_plot(hmcare_telecare, quote(communityalarmonly), quote(GenderISO),
+                  quote(AgeGRP)) +
+  ggtitle("Community Alarm, Home care cohort, by Age and Gender")
+commalarm_byAgeandGender
+```
+
+Females more likely to have a community alarm across all age bands. 
+
+###Distribution by Local Authority
+```{r commmalarm_byLA, fig.width=18, fig.height=16}
+commalarm_byLA <-
+  facet_plot(hmcare_telecare, quote(communityalarmonly), quote(LAcode)) +
+  ggtitle("Community Alarm, Home care cohort, by Local Auhority")
+commalarm_byLA
+```
+ 
+Big differences across LAs in who does/does not provide community alarm for their home care clients. This could be a useful distinction for outcomes.
+ 
+ I'll stack and order
+```{r commalarm_byLA_stacked, fig.width=12}
+stackstats <-                   
+    hmcare_telecare %>%
+    group_by(LAcode, communityalarmonly) %>%         
+    summarise(count = n()) %>%
+    mutate(pct = count/sum(count)*100)
+
+ordered_commalarm <-      
+  stackstats %>%
+  arrange(communityalarmonly, -pct)
+ordered_LAs <- ordered_commalarm$LAcode[1:32]  #Order by Female over75s
+
+commalarm_byLA_stacked <-
+  ggplot(stackstats, aes(x = LAcode, y = pct, fill = communityalarmonly)) +
+  geom_col(position = "stack") +
+  scale_x_discrete(limits = ordered_LAs) +#using above vector
+  ggtitle("Community alarm only, Home care cohort") +
+  xlab("Local Authority") +
+  ylab("Perecentage receiving homecare") +
+  theme_economist() +
+  theme(axis.text.x = element_text(angle = 45, size = 10, hjust = 1, vjust = 1)) 
+commalarm_byLA_stacked
+```
+
+##Telecare only
+The metadata does not give a description of exactly what telecare is. Clearly it is something different to a community alarm requiring seperate data collection. 
+
+###National Distribution
+```{r telecare_nat, fig.width=8}
+telecare_nat <-
+  facet_plot(hmcare_telecare, quote(telecareonly), quote(year)) +
+  ggtitle("Telecare for those receiving home care, by year")
+telecare_nat
+```
+
+So only a fraction of the number receiving community alarm. How many exactly?
+```{r count_telecare_only}
+nrow(hmcare_telecare[hmcare_telecare$telecareonly == "Yes",])
+```
+
+Unlikely to have power to be used as a comparator on its own - but could be lumped with commuity alarm and community alarm and telecare(which we haven't looked at yet).
+
+Quick look at distributions anyhow. 
+
+
+###Distribution by Age and Gender
+```{r telecare_age_gender, fig.width=10}
+telecare_byAgeandGender <-
+  multifacet_plot(hmcare_telecare,quote(telecareonly), quote(GenderISO),
+                  quote(AgeGRP)) +
+  ggtitle("Telecare, Home care cohort, by Age and Gender")
+telecare_byAgeandGender
+```
+
+Similar distrinution across age and gender.
+
+###Distribution by Local Authority
+```{r telecare_byLA, fig.width=18, fig.height=16}
+telecare_byLA <-
+  facet_plot(hmcare_telecare, quote(telecareonly), quote(LAcode)) +
+  ggtitle("Telecare only, Home care cohort, by Local Authority")
+telecare_byLA
+```
+
+So some LAs provide no telecare. Distribution fairly evenly spread among those that do with the notable exception of Midlothian. Recording error or policy initiative? If the latter then may be worth sub-group analysis although we are talking about less than 400 individuals. 
+
+##Community alarm AND telecare
+The final telecare variable is for thoise that receive home care, have a community alarm AND alos have a telecare service. Expecting small numbers.
+
+
+###National Distribution
+```{r commandtelecare_nat, fig.width=8}
+commandtelecare_nat <-
+  facet_plot(hmcare_telecare, quote(communityandtelecare), quote(year)) +
+  ggtitle("Community alarm & Telecare for those receiving home care, by year")
+commandtelecare_nat
+```
+
+Ha! that's me told - higher numbers than in the telecare only cohort!
+
+```{r count_commandtelecare}
+nrow(hmcare_telecare[hmcare_telecare$communityandtelecare == "Yes",])
+```
+
+5 times as much!
+
+###Distribution by Age and Gender
+```{r commandtelecare_age_gender, fig.width=10}
+commandtelecare_byAgeandGender <-
+  multifacet_plot(hmcare_telecare,quote(communityandtelecare), quote(GenderISO),
+                  quote(AgeGRP)) +
+  ggtitle("Community and Telecare, Home care cohort, by Age and Gender")
+commandtelecare_byAgeandGender
+```
+
+Again, similar distributions across age and gender.
+
+###Distribution by Local Authority
+```{r commandtelecare_byLA, fig.width=18, fig.height=16}
+commandtelecare_byLA <-
+  facet_plot(hmcare_telecare, quote(communityandtelecare), quote(LAcode)) +
+  ggtitle("Community and Telecare, Home care cohort, by Local Authority")
+commandtelecare_byLA
+```
+
+Hmm, really wide variations again - which leads me to worry about quality. Does the provision of this type of service really vary from 0% in some LAs to 67.2% in others??
+
+I'll stack it for easier comparison.
+
+```{r commandtelecare_byLA_stacked, fig.width=12}
+stackstats <-                   
+    hmcare_telecare %>%
+    group_by(LAcode, communityandtelecare) %>%         
+    summarise(count = n()) %>%
+    mutate(pct = count/sum(count)*100)
+
+ordered_commandtelecare <-      
+  stackstats %>%
+  arrange(communityandtelecare, -pct)
+ordered_LAs <- ordered_commandtelecare$LAcode[1:32]  #Order by Female over75s
+
+commandtelecare_byLA_stacked <-
+  ggplot(stackstats, aes(x = LAcode, y = pct, fill = communityandtelecare)) +
+  geom_col(position = "stack") +
+  scale_x_discrete(limits = ordered_LAs) +#using above vector
+  ggtitle("Community and Telecare, Home care cohort") +
+  xlab("Local Authority") +
+  ylab("Perecentage receiving homecare") +
+  theme_economist() +
+  theme(axis.text.x = element_text(angle = 45, size = 10, hjust = 1, vjust = 1)) 
+commandtelecare_byLA_stacked
+```
+
+
+
+#Session Info
+```{r session_info}
+devtools::session_info()
+```

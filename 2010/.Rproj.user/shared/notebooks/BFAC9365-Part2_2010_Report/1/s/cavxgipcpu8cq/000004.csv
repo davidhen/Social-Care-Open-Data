@@ -1,0 +1,4 @@
+"0","hmcare_only_age_LA <-"
+"0","  facet_plot(hmcare_only2010, quote(AgeGRP), quote(LAcode)) +"
+"0","  ggtitle(""Count of Age Group 2010 by Local Authority"")"
+"0","hmcare_only_age_LA"

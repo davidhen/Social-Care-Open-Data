@@ -1,0 +1,6 @@
+"0","hmcare_only2010 <-           #Create new object ""hmcare_only2010"" that filters by all"
+"0","  hmcare2010 %>%             #individuals from hmcare2010 that have HCclient == ""Yes"""
+"0","  filter(HCclient == ""Yes"")  #i.e. all those that receive home care hours. "
+"0","no_hmcare2010 <-             #Create a new object ""no_hmcare2010"" which contains the"
+"0","  hmcare2010 %>%             #individuals not in hmcare_only2010"
+"0","  filter(HCclient == ""No"")"

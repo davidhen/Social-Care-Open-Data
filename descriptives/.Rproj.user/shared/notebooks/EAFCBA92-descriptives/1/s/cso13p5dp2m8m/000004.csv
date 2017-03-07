@@ -1,0 +1,5 @@
+"0","commandtelecare_byAgeandGender <-"
+"0","  multifacet_plot(hmcare_telecare,quote(communityandtelecare), quote(GenderISO),"
+"0","                  quote(AgeGRP)) +"
+"0","  ggtitle(""Community and Telecare, Home care cohort, by Age and Gender"")"
+"0","commandtelecare_byAgeandGender"

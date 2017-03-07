@@ -1,0 +1,3 @@
+"0","hmcare2010$clientID <- as.character(hmcare2010$clientID)"
+"0","hmcare2011$clientID <- as.character(hmcare2011$clientID)"
+"0","hmcare2012$clientID <- as.character(hmcare2012$clientID)"

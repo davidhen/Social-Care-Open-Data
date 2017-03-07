@@ -1,0 +1,4 @@
+"0","gender_by_LA <-"
+"0","  facet_plot(hmcare_alldata, quote(GenderISO), quote(LAcode)) +"
+"0","  ggtitle(""Gender, by Local Authority"")"
+"0","gender_by_LA"

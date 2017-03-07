@@ -1,0 +1,4 @@
+"0","Gender_table <-"
+"0","  fct_count(no_hmcare2010$GenderISO) %>%"
+"0","  mutate(percentage = n/sum(n)*100)"
+"0","Gender_table"

@@ -1,0 +1,4 @@
+"0","hmcare2010 %>%"
+"0","  filter(HCclient == ""Yes"") %>%"
+"0","  filter(AgeGRP == ""Unknown"") %>%"
+"0","  summarise(n())"

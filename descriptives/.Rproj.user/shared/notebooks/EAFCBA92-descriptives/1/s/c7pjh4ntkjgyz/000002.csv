@@ -1,0 +1,4 @@
+"0","bandHRSTT_byLA <-"
+"0","  facet_plot(hmcare_alldata_simplified, quote(bandHRSTT), quote(LAcode)) +"
+"0","  ggtitle(""Total Home Care Hours 2010-2012, by Local Authority"")"
+"0","bandHRSTT_byLA"

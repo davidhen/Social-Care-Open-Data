@@ -1,0 +1,4 @@
+"0","age_table <-"
+"0","  fct_count(no_hmcare2010$AgeGRP) %>%"
+"0","  mutate(percentage = n/sum(n)*100)"
+"0","age_table"
