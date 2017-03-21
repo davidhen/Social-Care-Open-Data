@@ -205,6 +205,7 @@ age_by_LA_stacked <-
 age_by_LA_stacked
 ``` 
 
+
 So a lot easier to make comparisons here, I wonder if it would be even easier if I collapsed the 75-85 and 85+ age groups together? 
 
 ```{r stacked_age_simplified, fig.width=12}

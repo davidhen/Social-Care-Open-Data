@@ -1,0 +1,17 @@
+---
+title: "Social Care Survey Open Data."
+subtitle: "Part 3. Population Comparisons"
+output: 
+  rmarkdown::html_document :
+    theme: readable
+    code_folding: hide
+    toc: yes
+    toc_float: yes
+    number_sections: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(cache = TRUE)
+```
+
